@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+/* 앱 전체는 아이보리 배경. 데스크톱에서 열어도 가운데 390px 프레임으로 보이도록. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #efebe0; /* 프레임 바깥 여백색 (디자인 캔버스 배경) */
+  color: #2b2b2b;
+  -webkit-font-smoothing: antialiased;
+  font-size: 18px; /* 시니어 친화 base */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 접근성: 키보드 포커스 항상 보이게 */
+:focus-visible {
+  outline: 3px solid #3e7a4e;
+  outline-offset: 2px;
+}
+
+/* 모션 최소화 존중 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@layer components {
+  /* 메인 CTA 버튼 — 스펙 §0 버튼 규격 (높이 64, 포레스트그린, 흰 글씨 22 Bold) */
+  .btn-primary {
+    @apply w-full h-touch rounded-btn bg-forest text-white text-btn
+           flex items-center justify-center gap-2
+           active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed
+           transition;
+  }
+  .btn-secondary {
+    @apply w-full h-touch rounded-btn bg-lightgreen text-forest text-btn
+           flex items-center justify-center gap-2 active:brightness-95 transition;
+  }
+  .btn-text {
+    @apply w-full h-14 rounded-btn text-graytext text-body
+           flex items-center justify-center underline underline-offset-4;
+  }
+  /* 카드 — radius 20 */
+  .card {
+    @apply bg-white rounded-card p-5 shadow-[0_2px_10px_rgba(0,0,0,0.05)];
+  }
+  /* 입력 필드 — 높이 64, radius 16 */
+  .field {
+    @apply w-full h-touch rounded-field bg-white border border-borderline
+           px-4 text-body text-charcoal placeholder:text-graytext
+           focus:border-forest;
+  }
+  /* 선택형 큰 버튼 (설문) */
+  .choice {
+    @apply w-full min-h-[64px] rounded-field bg-white border-2 border-borderline
+           px-5 py-4 text-body text-charcoal text-left flex items-center justify-between
+           active:brightness-95 transition;
+  }
+  .choice-selected {
+    @apply border-forest bg-lightgreen font-bold;
+  }
+}
