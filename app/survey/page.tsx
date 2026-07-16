@@ -8,7 +8,7 @@ import Boni from "@/components/Boni";
 import PageHeader from "@/components/PageHeader";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { QUESTIONS, TOTAL_STEPS, type Question } from "@/lib/survey";
+import { QUESTIONS, type Question } from "@/lib/survey";
 import type { SurveyAnswers } from "@/lib/types";
 import { useSpeech, parseKoreanNumber } from "@/lib/useSpeech";
 
@@ -158,6 +158,12 @@ export default function SurveyScreen() {
     return -1;
   };
 
+  // 진행 번호는 문항 고정 번호(q.step)가 아니라 "보이는 문항" 기준으로 1, 2, 3… 차례대로 센다
+  // (폐경 '아니오'면 폐경 나이 문항이 숨겨져 번호가 건너뛰던 문제 방지)
+  const isVisible = (qq: Question) => !qq.showIf || qq.showIf(answers);
+  const stepNo = QUESTIONS.slice(0, idx + 1).filter(isVisible).length;
+  const stepTotal = QUESTIONS.filter(isVisible).length;
+
   const goNext = () => {
     const n = nextVisible(idx);
     if (n === -1) router.push("/checkup");
@@ -233,7 +239,7 @@ export default function SurveyScreen() {
           }
         />
         <div className="shrink-0 px-gutter pb-2">
-          <ProgressBar current={q.step} total={TOTAL_STEPS} />
+          <ProgressBar current={stepNo} total={stepTotal} />
         </div>
 
         {/* 콘텐츠 스크롤 */}
@@ -327,7 +333,7 @@ export default function SurveyScreen() {
       title="건강 설문"
       boni="point"
       onBack={goBack}
-      progress={{ current: q.step, total: TOTAL_STEPS }}
+      progress={{ current: stepNo, total: stepTotal }}
       footer={
         <button onClick={goNext} disabled={!answered} className="btn-primary">
           다음
