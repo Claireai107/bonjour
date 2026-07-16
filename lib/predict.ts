@@ -159,8 +159,8 @@ function computePercentile(p: number, age?: number): number {
     if (dist[mid] < p) lo = mid + 1;
     else hi = mid;
   }
-  const higher = dist.length - lo; // 나보다 위험 높은 사람 수
-  return Math.max(1, Math.min(99, Math.round((higher / dist.length) * 100)));
+  // lo = 나보다 위험이 낮은(더 건강한) 사람 수 → 건강 상위 % (낮을수록 건강)
+  return Math.max(1, Math.min(99, Math.round((lo / dist.length) * 100)));
 }
 
 function hasCheckup(c: CheckupInputs): boolean {

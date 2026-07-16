@@ -197,12 +197,12 @@ function ReportBody({
             </div>
             <div className="flex justify-between text-[13px] text-graytext mt-[5px]">
               <span>관리 필요</span>
-              <span className="text-charcoal">
-                {result.percentile <= 50
-                  ? "또래 평균보다 좋은 편이에요"
-                  : "또래 평균보다 관리가 필요해요"}
-              </span>
               <span>건강</span>
+            </div>
+            <div className="mt-[6px] text-center text-[13px] text-charcoal">
+              {result.percentile <= 50
+                ? "또래 평균보다 좋은 편이에요"
+                : "또래 평균보다 관리가 필요해요"}
             </div>
           </div>
         </div>
