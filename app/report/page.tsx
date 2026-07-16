@@ -183,7 +183,12 @@ function ReportBody({
               같은 또래와 비교하면
             </div>
             <div className="mt-[2px] text-[20px] font-bold text-forest">
-              {band}상위 {result.percentile}%예요
+              {/* 건강한 절반이면 '상위 X%', 나쁜 절반이면 '하위 X%'로 표기 */}
+              {band}
+              {result.percentile <= 50
+                ? `상위 ${result.percentile}%`
+                : `하위 ${100 - result.percentile}%`}
+              예요
             </div>
             <div className="relative pt-[30px] mt-1">
               <div
