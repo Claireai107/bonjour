@@ -71,7 +71,7 @@ export default function PostcodeSearch({
       />
       <div className="relative w-full max-w-frame h-[78dvh] bg-white rounded-t-[24px] overflow-hidden flex flex-col">
         <div className="shrink-0 flex items-center justify-between px-6 pt-5 pb-3">
-          <h2 className="text-[20px] font-bold text-charcoal">주소 검색</h2>
+          <h2 className="text-[length:calc(20px*var(--ts))] font-bold text-charcoal">주소 검색</h2>
           <button
             onClick={onClose}
             aria-label="닫기"

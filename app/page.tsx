@@ -152,6 +152,13 @@ export default function SplashScreen() {
       >
         시작하기
       </button>
+
+      <button
+        onClick={() => router.push("/login")}
+        className="mt-3 mx-auto text-[15px] text-graytext underline underline-offset-4 active:brightness-90"
+      >
+        이미 계정이 있어요
+      </button>
     </div>
   );
 }
