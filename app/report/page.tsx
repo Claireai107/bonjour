@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BoneScoreGauge from "@/components/BoneScoreGauge";
-import FactorBar from "@/components/FactorBar";
+import FactorBar, { FactorBarLegend } from "@/components/FactorBar";
+import TextScaleToggle from "@/components/TextScaleToggle";
 import Boni from "@/components/Boni";
 import TabBar from "@/components/TabBar";
 import { useBonJour } from "@/lib/store";
@@ -119,7 +120,7 @@ function ReportBody({
 
   return (
     <>
-      <div className="shrink-0 px-gutter pb-3 -mt-1">
+      <div className="shrink-0 px-gutter pb-3 -mt-1 flex items-center justify-between gap-3">
         <div className="relative inline-block">
           <select
             value={sel}
@@ -148,6 +149,7 @@ function ReportBody({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </div>
+        <TextScaleToggle />
       </div>
 
       {/* 콘텐츠 스크롤 + 하단 탭바 고정 */}
@@ -223,6 +225,7 @@ function ReportBody({
           <div className="text-[18px] font-bold text-charcoal">
             뼈 건강을 위협하는 주요 요인
           </div>
+          <FactorBarLegend />
           <div className="mt-3 flex flex-col gap-3">
             {result.riskFactors.length === 0 ? (
               <p className="text-[16px] text-graytext">
