@@ -621,6 +621,7 @@ export default function CheckupScreen() {
           <div className="mt-4 space-y-5">
             <Field
               label="체중"
+              termKey="weight"
               unit="kg"
               value={form.weight}
               onChange={(v) => setForm({ ...form, weight: v })}
@@ -639,6 +640,7 @@ export default function CheckupScreen() {
             />
             <Field
               label="알칼리성 인산분해효소 (ALP)"
+              termKey="alp"
               unit="IU/L"
               value={form.alp}
               onChange={(v) => setForm({ ...form, alp: v })}
@@ -725,15 +727,21 @@ function Field({
   unit,
   value,
   onChange,
+  termKey,
 }: {
   label: string;
   unit: string;
   value: string;
   onChange: (v: string) => void;
+  termKey?: string;
 }) {
   return (
     <div className="mt-4">
-      <label className="block text-body text-charcoal mb-2">{label}</label>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <label className="text-body text-charcoal">{label}</label>
+        {/* 무슨 수치인지 그 자리에서 확인 (1차 UT P1·P4) */}
+        {termKey && <TermTip termKey={termKey} />}
+      </div>
       <div className="relative">
         <input
           type="number"
