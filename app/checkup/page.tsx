@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Boni from "@/components/Boni";
 import { useBonJour } from "@/lib/store";
 import PageHeader from "@/components/PageHeader";
+import TermTip from "@/components/TermTip";
 
 // 건강검진 입력 (선택). 있으면 Model C(정밀), 없으면 Model B(설문전용).
 // 단계: choose(방법 선택) → camera(촬영) → recognizing(OCR 인식중) → confirm(결과 확인)
@@ -430,8 +431,12 @@ export default function CheckupScreen() {
                 }`}
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-[15px] font-bold text-graytext">
-                    {row.label}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[15px] font-bold text-graytext">
+                      {row.label}
+                    </span>
+                    {/* 무슨 수치인지 그 자리에서 확인 (1차 UT P1·P4) */}
+                    <TermTip termKey={row.key} />
                   </div>
                   {isEditing ? (
                     <input

@@ -9,6 +9,7 @@ import { avatarPose } from "@/components/Boni";
 import ProfileSwitcher from "@/components/ProfileSwitcher";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
+import { APP_VERSION } from "@/lib/appVersion";
 
 // 화면 9 · 마이페이지 — 상단 사용자 전환 + Bone Score 카드 + 오늘의 루틴 + 메뉴
 export default function MyPageScreen() {
@@ -204,12 +205,27 @@ export default function MyPageScreen() {
           <MenuItem label="도움말 & 문의" onClick={() => {}} />
           <MenuItem
             label="처음부터 다시 하기"
-            last
             onClick={() => {
               reset();
               router.push("/");
             }}
           />
+          <MenuItem
+            label="로그아웃"
+            last
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              reset();
+              router.push("/login");
+            }}
+          />
+          {/* 앱 버전 — 문의·장애 신고 시 어떤 배포본인지 바로 확인할 수 있게 노출 */}
+          <div className="w-full flex items-center gap-3 px-5 py-3">
+            <span className="flex-1 text-[16px] text-graytext">앱 버전</span>
+            <span className="text-[15px] text-graytext tabular-nums">
+              v{APP_VERSION}
+            </span>
+          </div>
         </div>
       </div>
 

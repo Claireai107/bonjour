@@ -14,7 +14,16 @@ body {
   background: #efebe0; /* 프레임 바깥 여백색 (디자인 캔버스 배경) */
   color: #2b2b2b;
   -webkit-font-smoothing: antialiased;
-  font-size: 18px; /* 시니어 친화 base */
+  font-size: calc(18px * var(--ts)); /* 시니어 친화 base */
+}
+
+/*
+ * 글자 크기 배율 — 사용자가 직접 고른다 (보통 / 크게 / 아주 크게).
+ * 1차 UT에서 P4·P5가 "글자가 작다"를 가장 불편한 점으로 꼽았다.
+ * 화면 곳곳의 text-[length:calc(Npx*var(--ts))] 가 이 값을 함께 쓴다.
+ */
+:root {
+  --ts: 1;
 }
 
 * {
@@ -36,6 +45,18 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* 슬라이더 손잡이 흔들림 — "여기가 움직입니다"라는 신호 (1차 UT H4) */
+@keyframes slider-nudge {
+  0%, 100% { transform: translateX(-50%); }
+  20% { transform: translateX(calc(-50% - 8px)); }
+  40% { transform: translateX(calc(-50% + 8px)); }
+  60% { transform: translateX(calc(-50% - 6px)); }
+  80% { transform: translateX(calc(-50% + 6px)); }
+}
+.animate-slider-nudge {
+  animation: slider-nudge 1s ease-in-out 2;
 }
 
 @layer components {

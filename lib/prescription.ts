@@ -7,8 +7,8 @@ import type {
 import { VIDEOS } from "./videos";
 
 // ============================================================
-// 처방 규칙 R1~R9 (매핑테이블 시트 1). 룰 기반 추천.
-// 모델은 "위험 변수"만 짚고, 운동 처방은 이 규칙(의학 가이드)이 담당.
+// 추천 규칙 R1~R9 (매핑테이블 시트 1). 룰 기반 추천.
+// 모델은 "위험 변수"만 짚고, 운동 추천은 이 규칙(운동 가이드라인 참고)이 담당.
 // ============================================================
 
 export const RULES: Record<string, PrescriptionRule> = {
@@ -99,7 +99,7 @@ export const RULES: Record<string, PrescriptionRule> = {
   },
 };
 
-// 처방 헤드라인 & BonTip (부록 B-3 시나리오)
+// 추천 헤드라인 & BonTip (부록 B-3 시나리오)
 const CARD_COPY: Record<
   string,
   { headline: string; checklist: string[]; bonTip: string }
@@ -152,7 +152,7 @@ const CARD_COPY: Record<
 };
 
 /**
- * 예측 결과의 위험요인(SHAP 상위) → 처방 규칙 매칭.
+ * 예측 결과의 위험요인(SHAP 상위) → 추천 규칙 매칭.
  * 실제 사용자는 위험요인이 2~3개 겹치므로 규칙을 조합해 카드 2~3개 노출.
  */
 export function buildPrescription(

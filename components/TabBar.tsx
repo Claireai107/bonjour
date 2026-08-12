@@ -33,7 +33,7 @@ export default function TabBar() {
           >
             <Icon color={color} />
             <span
-              className="text-[12px]"
+              className="text-[length:calc(15px*var(--ts))]"
               style={{ color, fontWeight: active ? 700 : 400 }}
             >
               {t.label}

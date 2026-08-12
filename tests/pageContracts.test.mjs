@@ -109,3 +109,32 @@ test("profile switcher edit mode can update and remove users", () => {
   assert.match(switcher, /profile-add\?edit=/);
   assert.match(switcher, /removeProfile/);
 });
+
+// ── 8/11 업데이트에서 가져온 음성 흐름 계약 ──────────────────
+
+test("홈에서 분석을 시작하면 답변 방식 선택 화면을 먼저 거친다", () => {
+  // 분석 시작 CTA는 공용 EmptyAnalysis 컴포넌트에 있고, 온보딩(답변 방식 선택)으로 보낸다
+  const home = read("app/home/page.tsx");
+  assert.match(home, /<EmptyAnalysis/);
+  assert.doesNotMatch(
+    home,
+    /router\.push\("\/survey"\)/,
+    "홈에서 설문으로 직행하면 답변 방식을 고를 기회가 사라진다"
+  );
+  const empty = read("components/EmptyAnalysis.tsx");
+  assert.match(empty, /router\.push\("\/onboarding"\)/);
+  assert.doesNotMatch(empty, /router\.push\("\/survey"\)/);
+});
+
+test("답변 방식 선택 화면이 손·음성 두 가지를 모두 설정한다", () => {
+  const onboarding = read("app/onboarding/page.tsx");
+  assert.match(onboarding, /choose\("hand"\)/);
+  assert.match(onboarding, /choose\("voice"\)/);
+  assert.match(onboarding, /router\.push\("\/survey"\)/);
+});
+
+test("설문 안에서도 답변 방식을 바꿀 수 있다", () => {
+  const survey = read("app/survey/page.tsx");
+  assert.match(survey, /setAnswerMode\("voice"\)/);
+  assert.match(survey, /setAnswerMode\("hand"\)/);
+});
