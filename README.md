@@ -91,13 +91,13 @@ app/
 components/         공용 UI — PageHeader·Boni(마스코트)·Avatar·Dialog·TabBar 등
 lib/
   predict.ts        ⭐ 예측 엔진 (아래 참고)
-  modelParams.ts    DA joblib에서 추출한 모델 계수 (수정 금지)
+  modelParams.ts    데이터팀 joblib에서 추출한 모델 계수 (수정 금지)
   survey.ts         설문 문항 정의 · prescription.ts 처방 규칙 · store.ts 상태
 ```
 
 ## ⭐ 예측 엔진 — 진짜 모델이 앱 안에서 돕니다
 
-`lib/predict.ts`는 DA팀 최종 로지스틱 모델(`최종모델_설문검진_로지스틱.joblib`)의
+`lib/predict.ts`는 데이터팀(`~/bonjour/데이터` 폴더) 최종 로지스틱 모델(`최종모델_설문검진_로지스틱.joblib`)의
 **표준화 기준(mean·std) + 계수 + 절편**을 추출해 담은 `modelParams.ts`로
 `sigmoid(절편 + Σ 계수·표준화값)`을 계산합니다 — Python `predict_proba()`와 **완전 동일**(검증 완료).
 그래서 Python 서버 없이 정적 배포만으로 실제 모델이 동작합니다.
@@ -111,7 +111,7 @@ lib/
 
 - 입력 우선순위: 시뮬레이터 조작 > **검진표 실측값** > 설문 자가응답
 - 나이는 설문에서 묻지 않고 가입 생년월일에서 파생 (`lib/age`)
-- 등급: 위험확률 ≥0.34 높음 / ≥0.20 주의 / 미만 정상 (DA `서비스_처리규칙.json` 기준)
+- 등급: 위험확률 ≥0.34 높음 / ≥0.20 주의 / 미만 정상 (데이터 폴더 `서비스_처리규칙.json` 기준)
 
 **모델 재학습 시**: 새 joblib에서 `cols, medians, scalerMean, scalerScale, coef, intercept, threshold, peer, conv`를 추출해 `lib/modelParams.ts` 값만 교체하면 됩니다.
 
