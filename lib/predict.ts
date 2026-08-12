@@ -24,7 +24,7 @@ const VAR_LABEL: Record<string, string> = {
   LW_ms_a: "초경 시기",
   edu: "교육 수준",
   BD2: "음주 시작 시기",
-  LW_pr_1: "출산 횟수",
+  LW_pr_1: "임신 횟수", // 출산 횟수(LW_mt)와 다른 변수다. 유산·자궁외임신·현재 임신을 모두 포함한다
   LW_wh: "여성호르몬제",
   BE5_1: "근력운동",
   HE_wt: "체중",
@@ -80,7 +80,11 @@ function toModelVars(
     LW_mp_a: mpAge,
     LW_ms_a: a.menarcheAge,
     edu: a.education,
-    BD2: a.drinkStartAge === "none" ? undefined : a.drinkStartAge, // 비음주=미입력(학습 중앙값 대체)
+    // 비음주("none" 또는 -1)는 시작 나이가 없으므로 미입력 처리(학습 중앙값 대체)
+    BD2:
+      a.drinkStartAge === "none" || (typeof a.drinkStartAge === "number" && a.drinkStartAge <= 0)
+        ? undefined
+        : a.drinkStartAge,
     LW_pr_1: a.pregnancies,
     LW_wh: lwWh,
     BE5_1: days,
@@ -145,7 +149,8 @@ function gradeFromProb(p: number): RiskGrade {
   return "정상";
 }
 
-// 또래 대비 건강 상위 %. DA peer_percentile와 동일(연령대 분포에서 이진탐색).
+// 또래 중 나보다 위험이 높은 사람의 비율(%) — 클수록 건강. 연령대 분포에서 이진탐색.
+// 화면의 '상위 X%'는 100 - percentile 로 계산한다.
 function computePercentile(p: number, age?: number): number {
   const band =
     age == null ? "50대" : age < 50 ? "40대" : age < 60 ? "50대" : "60대";
@@ -159,8 +164,8 @@ function computePercentile(p: number, age?: number): number {
     if (dist[mid] < p) lo = mid + 1;
     else hi = mid;
   }
-  // lo = 나보다 위험이 낮은(더 건강한) 사람 수 → 건강 상위 % (낮을수록 건강)
-  return Math.max(1, Math.min(99, Math.round((lo / dist.length) * 100)));
+  const higher = dist.length - lo; // 나보다 위험 높은 사람 수
+  return Math.max(1, Math.min(99, Math.round((higher / dist.length) * 100)));
 }
 
 function hasCheckup(c: CheckupInputs): boolean {

@@ -114,7 +114,7 @@ function ReportBody({
 
   const badge = GRADE_BADGE[result.grade];
   const band = answers.age ? `${Math.floor(answers.age / 10) * 10}대 여성 중 ` : "";
-  const markerLeft = 100 - result.percentile; // 상위 30% → 70% 지점
+  const markerLeft = result.percentile; // percentile은 클수록 건강 → 오른쪽(건강)에 가깝게
   const delta = result.bestAchievableScore - result.boneScore;
 
   return (
@@ -185,9 +185,9 @@ function ReportBody({
             <div className="mt-[2px] text-[20px] font-bold text-forest">
               {/* 건강한 절반이면 '상위 X%', 나쁜 절반이면 '하위 X%'로 표기 */}
               {band}
-              {result.percentile <= 50
-                ? `상위 ${result.percentile}%`
-                : `하위 ${100 - result.percentile}%`}
+              {result.percentile >= 50
+                ? `상위 ${100 - result.percentile}%`
+                : `하위 ${result.percentile}%`}
               예요
             </div>
             <div className="relative pt-[30px] mt-1">
@@ -205,7 +205,7 @@ function ReportBody({
               <span>건강</span>
             </div>
             <div className="mt-[6px] text-center text-[13px] text-charcoal">
-              {result.percentile <= 50
+              {result.percentile >= 50
                 ? "또래 평균보다 좋은 편이에요"
                 : "또래 평균보다 관리가 필요해요"}
             </div>
