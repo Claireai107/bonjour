@@ -15,65 +15,24 @@ function getRecognition(): any {
   return Ctor ? new Ctor() : null;
 }
 
-/** 한국어 음성 → 숫자 파싱 (아라비아 숫자 우선, 없으면 한글 수사) */
-export function parseKoreanNumber(text: string): number | null {
-  if (!text) return null;
-  // 1) 아라비아 숫자
-  const digits = text.replace(/[^\d]/g, "");
-  if (digits) return parseInt(digits, 10);
+// 숫자·표현 변환은 lib/speechNormalize.ts 로 옮겼다 (UT H1 대응).
+// 기존 import 경로를 쓰던 화면이 있어 여기서도 그대로 내보낸다.
+export { parseKoreanNumber, parseCount, parseRange, normalize } from "./speechNormalize";
 
-  // 2) 한글 수사 (0~99 위주)
-  const t = text.replace(/\s/g, "");
-  const sino: Record<string, number> = {
-    영: 0, 공: 0, 일: 1, 이: 2, 삼: 3, 사: 4, 오: 5,
-    육: 6, 륙: 6, 칠: 7, 팔: 8, 구: 9,
-  };
-  const native: Record<string, number> = {
-    한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4,
-    다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9,
-  };
-  const nativeTens: Record<string, number> = {
-    열: 10, 스물: 20, 서른: 30, 마흔: 40, 쉰: 50,
-    예순: 60, 일흔: 70, 여든: 80, 아흔: 90,
-  };
-
-  // 2-a) 고유어 (예: 예순둘, 마흔다섯, 쉰)
-  for (const tens of Object.keys(nativeTens)) {
-    if (t.startsWith(tens)) {
-      let val = nativeTens[tens];
-      const rest = t.slice(tens.length).replace(/살|세|개|번|시간|회/g, "");
-      for (const u of Object.keys(native)) {
-        if (rest.startsWith(u)) {
-          val += native[u];
-          break;
-        }
-      }
-      return val;
-    }
-  }
-
-  // 2-b) 한자어 (예: 육십이, 십오)
-  const cleaned = t.replace(/살|세|개|번|시간|회/g, "");
-  if (cleaned.includes("십")) {
-    const [tensPart, unitPart] = cleaned.split("십");
-    const tens = tensPart === "" ? 1 : sino[tensPart] ?? 0;
-    const unit = unitPart ? sino[unitPart[0]] ?? 0 : 0;
-    return tens * 10 + unit;
-  }
-  if (cleaned.length === 1 && sino[cleaned] != null) return sino[cleaned];
-
-  return null;
-}
+/** 말이 없을 때 이만큼 기다렸다가 스스로 끊는다 (무한 대기 방지) */
+const SILENCE_TIMEOUT_MS = 8000;
 
 export function useSpeech() {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const recRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSupported(!!getRecognition());
     return () => {
       try {
+        if (timerRef.current) clearTimeout(timerRef.current);
         recRef.current?.abort?.();
         window.speechSynthesis?.cancel?.();
       } catch {
@@ -96,7 +55,10 @@ export function useSpeech() {
     }
   }, []);
 
-  /** 한 번 듣고 인식 결과(문자열)를 콜백으로 반환 */
+  /**
+   * 한 번 듣고 인식 결과를 콜백으로 넘긴다.
+   * onError 는 인식 실패·권한 거부·무응답을 모두 포함한다.
+   */
   const listen = useCallback(
     (onResult: (transcript: string) => void, onError?: () => void) => {
       const rec = getRecognition();
@@ -108,20 +70,49 @@ export function useSpeech() {
       rec.lang = "ko-KR";
       rec.interimResults = false;
       rec.maxAlternatives = 1;
+
+      // 8초 동안 아무 말이 없으면 스스로 끊는다.
+      // UT에서 버튼을 누른 뒤 반응이 없어 계속 기다리는 참가자가 있었다(P5).
+      const clearTimer = () => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+      timerRef.current = setTimeout(() => {
+        try {
+          rec.stop();
+        } catch {
+          /* noop */
+        }
+      }, SILENCE_TIMEOUT_MS);
+
+      let got = false;
       rec.onresult = (e: any) => {
+        got = true;
+        clearTimer();
         const transcript = e.results?.[0]?.[0]?.transcript ?? "";
         setListening(false);
         onResult(transcript);
       };
       rec.onerror = () => {
+        clearTimer();
         setListening(false);
         onError?.();
       };
-      rec.onend = () => setListening(false);
+      rec.onend = () => {
+        clearTimer();
+        setListening(false);
+        if (!got) onError?.(); // 아무것도 못 들은 채 끝난 경우
+      };
+
       try {
         setListening(true);
+        // 녹음이 시작됐다는 걸 손끝으로도 알 수 있게 (지원 기기에서만)
+        navigator.vibrate?.(30);
         rec.start();
       } catch {
+        clearTimer();
         setListening(false);
         onError?.();
       }

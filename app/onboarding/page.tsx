@@ -4,12 +4,16 @@ import { useRouter } from "next/navigation";
 import Boni from "@/components/Boni";
 import TabBar from "@/components/TabBar";
 import { useBonJour } from "@/lib/store";
+import { useSpeech } from "@/lib/useSpeech";
+import TextScaleToggle from "@/components/TextScaleToggle";
 
 // 답변 방식 선택 (부록 C·G: 설문 시작 전 1회 선택)
 export default function AnswerModeScreen() {
   const router = useRouter();
   const setAnswerMode = useBonJour((s) => s.setAnswerMode);
   const reset = useBonJour((s) => s.reset);
+  // 음성 인식이 안 되는 브라우저에서는 '말로 답하기'를 권하지 않는다
+  const { supported } = useSpeech();
 
   const choose = (mode: "hand" | "voice") => {
     reset();
@@ -45,12 +49,17 @@ export default function AnswerModeScreen() {
 
       {/* 콘텐츠 스크롤 */}
       <div className="flex-1 overflow-y-auto px-gutter pb-10 flex flex-col [&>*]:shrink-0">
-      <h1 className="mt-9 text-[30px] font-bold text-charcoal">
+      <h1 className="mt-9 text-[length:calc(30px*var(--ts))] font-bold text-charcoal">
         어떻게 답하시겠어요?
       </h1>
-      <p className="mt-2.5 text-[18px] text-graytext">
-        설문 중에 언제든 바꿀 수 있어요
+      <p className="mt-2.5 text-[length:calc(18px*var(--ts))] text-graytext">
+        설문 중에도 위쪽 버튼으로 언제든 바꿀 수 있어요
       </p>
+
+      {/* 글자가 작게 느껴지면 시작 전에 바로 키울 수 있도록 (1차 UT P4·P5) */}
+      <div className="mt-5">
+        <TextScaleToggle />
+      </div>
 
       <div className="mt-7 flex flex-col gap-4">
         <button
@@ -75,10 +84,10 @@ export default function AnswerModeScreen() {
             </svg>
           </div>
           <div className="flex-1">
-            <p className="text-[22px] font-bold text-charcoal">
+            <p className="text-[length:calc(22px*var(--ts))] font-bold text-charcoal">
               손으로 입력하기
             </p>
-            <p className="mt-1 text-[16px] text-graytext">버튼을 눌러 답해요</p>
+            <p className="mt-1 text-[length:calc(16px*var(--ts))] text-graytext">버튼을 눌러 답해요</p>
           </div>
           <svg
             width="22"
@@ -96,7 +105,8 @@ export default function AnswerModeScreen() {
 
         <button
           onClick={() => choose("voice")}
-          className="bg-white rounded-card px-6 py-7 flex items-center gap-[18px] text-left shadow-[0_1px_6px_rgba(0,0,0,0.06)] active:brightness-95"
+          disabled={!supported}
+          className="bg-white rounded-card px-6 py-7 flex items-center gap-[18px] text-left shadow-[0_1px_6px_rgba(0,0,0,0.06)] active:brightness-95 disabled:opacity-50"
         >
           <div className="w-16 h-16 rounded-field bg-lightgreen flex items-center justify-center flex-none">
             <svg
@@ -115,9 +125,11 @@ export default function AnswerModeScreen() {
             </svg>
           </div>
           <div className="flex-1">
-            <p className="text-[22px] font-bold text-charcoal">말로 답하기</p>
-            <p className="mt-1 text-[16px] text-graytext">
-              본이가 읽어주고, 말로 답해요
+            <p className="text-[length:calc(22px*var(--ts))] font-bold text-charcoal">말로 답하기</p>
+            <p className="mt-1 text-[length:calc(16px*var(--ts))] text-graytext">
+              {supported
+                ? "본이가 읽어주고, 말로 답해요"
+                : "이 브라우저에서는 쓸 수 없어요 (크롬에서 열어주세요)"}
             </p>
           </div>
           <svg
@@ -134,6 +146,11 @@ export default function AnswerModeScreen() {
           </svg>
         </button>
       </div>
+
+      {/* 음성을 골라도 손으로 답할 수 있다는 점을 미리 알려 부담을 줄인다 */}
+      <p className="mt-5 text-[length:calc(16px*var(--ts))] text-graytext leading-[1.55]">
+        말로 답하기를 골라도 화면에서 손으로 고를 수 있어요.
+      </p>
 
       <div className="flex-1" />
       </div>

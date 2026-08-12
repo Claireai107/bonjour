@@ -5,36 +5,62 @@ import { useRouter } from "next/navigation";
 import ScreenFrame from "@/components/ScreenFrame";
 import ProgressBar from "@/components/ProgressBar";
 import Boni from "@/components/Boni";
-import PageHeader from "@/components/PageHeader";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
 import { QUESTIONS, type Question } from "@/lib/survey";
 import type { SurveyAnswers } from "@/lib/types";
-import { useSpeech, parseKoreanNumber } from "@/lib/useSpeech";
+import { useSpeech } from "@/lib/useSpeech";
+import PermissionPrimer, { checkPermission } from "@/components/PermissionPrimer";
+import {
+  normalize,
+  parseCount,
+  parseRange,
+  parseKoreanNumber,
+} from "@/lib/speechNormalize";
 
-// 음성 인식 결과 → 선택지 매칭 (예/아니오/잘모름 · 라벨 · 숫자)
+// 음성 인식 결과 → 선택지 매칭
+//
+// 1차 UT에서 "하루", "한 번", "안 해요", "5~7일"이 모두 매칭에 실패했다.
+// 순서를 바꿔 표현 사전(parseCount)을 먼저 태우고, 거기서 나온 숫자를
+// 문항이 정한 구간(numberToChoice)으로 옮긴다.
 function matchChoice(q: Question, text: string): string | number | null {
-  const s = text.replace(/\s/g, "");
+  const s = normalize(text);
+  if (!s) return null;
+
+  // 1) 예 / 아니오 / 잘 모름
   const has = (arr: string[]) => arr.some((k) => s.includes(k));
-  if (q.skip && has(["안마셔", "안마시", "안먹", "못마셔", "금주"])) {
-    return q.skip.value;
-  }
   for (const c of q.choices ?? []) {
-    if (c.value === "yes" && has(["예", "네", "응", "했", "맞", "있"]))
-      return c.value;
+    if (c.value === "yes" && has(["예", "네", "응", "했", "맞", "있"])) return c.value;
     if (c.value === "no" && has(["아니", "안", "없", "아뇨"])) return c.value;
     if (c.value === "unknown" && has(["몰라", "모르", "글쎄"])) return c.value;
   }
-  for (const c of q.choices ?? []) {
-    const label = c.label.replace(/\s/g, "");
-    if (s.includes(label) || label.includes(s)) return c.value;
-  }
-  const n = parseKoreanNumber(text);
-  if (n != null) {
-    for (const c of q.choices ?? []) {
-      if (c.label.includes(String(n))) return c.value;
+
+  // 2) 문항별 추가 표현 (국민학교 → 초등학교 등)
+  for (const [value, words] of Object.entries(q.voiceAliases ?? {})) {
+    if (words.some((w) => s.includes(w))) {
+      const hit = q.choices?.find((c) => String(c.value) === value);
+      if (hit) return hit.value;
     }
   }
+
+  // 3) 선택지 라벨 그대로 말한 경우
+  for (const c of q.choices ?? []) {
+    const label = normalize(c.label);
+    if (s.includes(label) || label.includes(s)) return c.value;
+  }
+
+  // 4) 표현 사전으로 숫자를 뽑아 구간에 맞춘다
+  const n = parseCount(s);
+  if (n != null) {
+    if (q.numberToChoice) {
+      const mapped = q.numberToChoice(n);
+      if (mapped != null) return mapped;
+    }
+    for (const c of q.choices ?? []) {
+      if (normalize(c.label).includes(String(n))) return c.value;
+    }
+  }
+
   return null;
 }
 
@@ -94,6 +120,27 @@ function MicIcon({
   );
 }
 
+function HandIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#3E7A4E"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 11V6a1.5 1.5 0 0 1 3 0v5" />
+      <path d="M12 11V4.5a1.5 1.5 0 0 1 3 0V11" />
+      <path d="M15 11V6.5a1.5 1.5 0 0 1 3 0V13" />
+      <path d="M9 11V9a1.5 1.5 0 0 0-3 0v6a6 6 0 0 0 6 6h1a6 6 0 0 0 6-6" />
+    </svg>
+  );
+}
+
 function SpeakerIcon() {
   return (
     <svg
@@ -119,8 +166,27 @@ export default function SurveyScreen() {
   const answers = useBonJour((s) => s.answers);
   const setAnswer = useBonJour((s) => s.setAnswer);
   const answerMode = useBonJour((s) => s.answerMode);
+  const setAnswerMode = useBonJour((s) => s.setAnswerMode);
   const { supported, listening, speak, listen } = useSpeech();
   const [heard, setHeard] = useState("");
+  /**
+   * 음성 입력 상태는 세 단계로 나눠 보여준다.
+   *   idle → listening → recognized (또는 failed)
+   * UT에서 버튼을 눌러도 켜졌는지 몰라 당황하는 경우가 있었다(P4·P5).
+   */
+  const [voiceState, setVoiceState] = useState<
+    "idle" | "listening" | "recognized" | "failed"
+  >("idle");
+  const [rangeNote, setRangeNote] = useState("");
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  // 인식에 실패하면 직접 고르는 영역으로 시선을 옮겨준다
+  const focusPicker = () => {
+    setTimeout(() => {
+      pickerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+  };
+
 
   const [idx, setIdx] = useState(0);
   const q = QUESTIONS[idx];
@@ -128,6 +194,8 @@ export default function SurveyScreen() {
   // 음성 모드: 문항이 바뀌면 본이가 질문을 읽어줌
   useEffect(() => {
     setHeard("");
+    setVoiceState("idle");
+    setRangeNote("");
     if (answerMode === "voice") speak(q.title);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, answerMode]);
@@ -160,9 +228,9 @@ export default function SurveyScreen() {
 
   // 진행 번호는 문항 고정 번호(q.step)가 아니라 "보이는 문항" 기준으로 1, 2, 3… 차례대로 센다
   // (폐경 '아니오'면 폐경 나이 문항이 숨겨져 번호가 건너뛰던 문제 방지)
-  const isVisible = (qq: Question) => !qq.showIf || qq.showIf(answers);
-  const stepNo = QUESTIONS.slice(0, idx + 1).filter(isVisible).length;
-  const stepTotal = QUESTIONS.filter(isVisible).length;
+  const isVisibleQ = (qq: Question) => !qq.showIf || qq.showIf(answers);
+  const stepNo = QUESTIONS.slice(0, idx + 1).filter(isVisibleQ).length;
+  const stepTotal = QUESTIONS.filter(isVisibleQ).length;
 
   const goNext = () => {
     const n = nextVisible(idx);
@@ -176,70 +244,116 @@ export default function SurveyScreen() {
   };
 
   const value = answers[q.key];
+  const isLast = nextVisible(idx) === -1;
   const hasNumber = typeof value === "number" && !Number.isNaN(value);
-  const answered =
-    q.type === "number"
-      ? hasNumber || (q.skip != null && value === q.skip.value)
-      : value != null;
+  const answered = q.type === "number" ? hasNumber : value != null;
 
-  const handleVoice = () => {
+  // 마이크를 처음 쓸 때는 무엇에 쓰는지 먼저 알려주고 나서 권한을 요청한다
+  const [micPrimer, setMicPrimer] = useState(false);
+  const micAsked = useRef(false);
+
+  const requestVoice = async () => {
+    if (micAsked.current) {
+      startVoice();
+      return;
+    }
+    micAsked.current = true;
+    const state = await checkPermission("microphone");
+    if (state === "granted") {
+      startVoice();
+      return;
+    }
+    setMicPrimer(true); // prompt · denied · 확인 불가 모두 안내 먼저
+  };
+
+  const startVoice = () => {
+    setVoiceState("listening");
+    setRangeNote("");
     listen(
       (transcript) => {
         setHeard(transcript);
+
         if (q.type === "number") {
-          const s = transcript.replace(/\s/g, "");
-          const has = (arr: string[]) => arr.some((k) => s.includes(k));
-          if (
-            q.skip &&
-            has(["안마셔", "안마시", "안먹", "못마셔", "금주"])
-          ) {
-            setAnswer(q.key, q.skip.value as SurveyAnswers[typeof q.key]);
-            return;
-          }
-          const n = parseKoreanNumber(transcript);
+          const range = parseRange(transcript);
+          // 횟수를 묻는 문항은 "없어요", "한 번" 같은 말도 값으로 받는다
+          const parse = q.countStyle ? parseCount : parseKoreanNumber;
+          const n = range ? range[0] : parse(transcript);
           if (n != null) {
             const clamped = Math.max(q.min ?? 0, Math.min(q.max ?? 999, n));
             setAnswer(q.key, clamped as SurveyAnswers[typeof q.key]);
+            setVoiceState("recognized");
+            // 범위로 답했으면 어느 값으로 넣었는지 알려준다
+            if (range) setRangeNote(`${range[0]}~${range[1]} 중 ${clamped}로 넣었어요`);
+            return;
           }
         } else {
+          const range = parseRange(transcript);
           const m = matchChoice(q, transcript);
           if (m != null) {
             setAnswer(q.key, m as SurveyAnswers[typeof q.key]);
+            setVoiceState("recognized");
+            if (range) setRangeNote(`${range[0]}~${range[1]} 중 ${range[0]} 기준으로 넣었어요`);
+            return;
           }
         }
+
+        // 들리긴 했지만 값으로 못 바꾼 경우
+        setVoiceState("failed");
+        focusPicker();
       },
-      () => setHeard("(잘 안 들렸어요. 다시 말씀해 주세요)")
+      () => {
+        setHeard("");
+        setVoiceState("failed");
+        focusPicker();
+      }
     );
   };
 
-  // 디자인: 한 줄 제목 30px, 후반부 긴 제목(6~10)은 28px
-  const titleSize = q.step >= 6 ? 28 : 30;
+  const handleVoice = () => {
+    void requestVoice();
+  };
+
+  // 디자인: 한 줄 제목 30px, 후반부 긴 제목(7~10)은 28px
+  const titleSize = stepNo >= 7 ? 28 : 30;
 
   // ================== 음성 모드 (음성모드_예시.html) ==================
   if (answerMode === "voice") {
     const answeredLabel = !answered
       ? null
-      : q.skip && value === q.skip.value
-      ? q.skip.label
       : q.type === "choice"
       ? q.choices?.find((c) => c.value === value)?.label ?? String(value)
       : `${value}${q.unit ?? ""}`;
 
     return (
       <div className="flex flex-col h-dvh bg-ivory">
-        {/* 상단 고정: 페이지명 헤더('음성 모드' 칩 우측) + 진행바 줄 */}
-        <PageHeader
-          title="건강 설문"
-          back
-          onBack={goBack}
-          right={
-            <span className="text-[13px] font-bold text-forest bg-lightgreen rounded-chip px-3 py-1">
-              음성 모드
-            </span>
-          }
-        />
-        <div className="shrink-0 px-gutter pb-2">
-          <ProgressBar current={stepNo} total={stepTotal} />
+        {/* 상단 고정: 뒤로가기 + 진행바 + '음성 모드' 칩 */}
+        <div className="shrink-0 pt-safetop pb-2 px-gutter flex items-center gap-3">
+          <button
+            onClick={goBack}
+            aria-label="뒤로 가기"
+            className="w-8 h-11 -ml-1 flex items-center justify-center text-charcoal shrink-0"
+          >
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M15 18l-6-6 6-6"
+                stroke="currentColor"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <div className="flex-1">
+            <ProgressBar current={stepNo} total={stepTotal} />
+          </div>
+          {/* 음성 모드에서 다시 손 입력으로 돌아가는 길 */}
+          <button
+            onClick={() => setAnswerMode("hand")}
+            className="text-[length:calc(15px*var(--ts))] font-bold text-forest bg-lightgreen rounded-chip px-3 py-2 shrink-0 active:brightness-95 flex items-center gap-1.5"
+          >
+            <HandIcon />
+            손으로 답하기
+          </button>
         </div>
 
         {/* 콘텐츠 스크롤 */}
@@ -254,80 +368,154 @@ export default function SurveyScreen() {
           >
             <div className="flex items-center gap-2 mb-2">
               <SpeakerIcon />
-              <span className="text-[14px] font-bold text-forest">
+              <span className="text-[length:calc(16px*var(--ts))] font-bold text-forest">
                 본이가 읽어드려요
               </span>
             </div>
-            <div className="text-[22px] font-bold text-charcoal leading-[1.4] whitespace-pre-line">
+            <div className="text-[length:calc(22px*var(--ts))] font-bold text-charcoal leading-[1.4] whitespace-pre-line">
               {q.title}
             </div>
           </button>
         </div>
 
-        {/* 들은 말 */}
-        <div className="mt-6 bg-lightgreen rounded-card px-5 py-[18px] flex items-center gap-3">
-          <MicIcon />
-          <div className="flex-1 text-[18px] text-charcoal">
-            {listening ? (
-              "듣고 있어요..."
-            ) : heard ? (
-              <>
-                들은 말: <b className="text-forest">&ldquo;{heard}&rdquo;</b>
-              </>
-            ) : (
-              "아래 버튼을 누르고 말씀해 주세요"
+        {/*
+          인식 결과와 실패 안내 — 말한 뒤에만 나온다.
+          예전에는 대기 상태에도 "아래 버튼을 누르고 말씀해 주세요" 박스가 떠 있었는데,
+          아래 마이크 버튼과 안내가 겹치는 데다 박스가 눌리는 것처럼 보여 헷갈렸다.
+        */}
+        {voiceState === "failed" && (
+          <div className="mt-6 rounded-card bg-[#FDECE8] px-5 py-4">
+            <p className="text-[length:calc(18px*var(--ts))] text-[#C7503A] leading-[1.5]">
+              {heard ? `"${heard}" 로 들었는데 잘 모르겠어요.` : "잘 못 들었어요."}
+              <br />
+              다시 말하거나 아래에서 골라 주세요.
+            </p>
+          </div>
+        )}
+
+        {voiceState === "recognized" && heard && (
+          <div className="mt-6 rounded-card bg-lightgreen px-5 py-4">
+            <p className="text-[length:calc(18px*var(--ts))] text-charcoal leading-[1.5]">
+              <b className="text-forest">&ldquo;{heard}&rdquo;</b> 로 듣고
+              {answeredLabel ? (
+                <>
+                  {" "}
+                  <b className="text-forest">{answeredLabel}</b> 로 넣었어요
+                </>
+              ) : (
+                " 인식했어요"
+              )}
+            </p>
+            {rangeNote && (
+              <p className="mt-1 text-[length:calc(16px*var(--ts))] text-graytext">
+                {rangeNote}
+              </p>
             )}
           </div>
-        </div>
-
-        {/* 인식된 답 */}
-        {answeredLabel && (
-          <>
-            <div className="mt-4 min-h-[64px] bg-white border-[2.5px] border-forest rounded-field flex items-center justify-center gap-2 px-4">
-              <span className="text-[26px] font-bold text-charcoal">
-                {answeredLabel}
-              </span>
-            </div>
-            <div className="mt-5 text-[20px] font-bold text-charcoal text-center">
-              이게 맞나요? 아니면 수정하세요
-            </div>
-          </>
         )}
+
+        {/*
+          답 영역 — 음성이 되든 안 되든 항상 보여준다.
+          UT에서 인식에 실패하면 값을 고를 방법 자체가 없었다(P3).
+        */}
+        <div ref={pickerRef} className="mt-6">
+          <p className="text-[length:calc(17px*var(--ts))] font-bold text-graytext">
+            {q.type === "number" ? "숫자를 직접 맞춰도 돼요" : "아래에서 골라도 돼요"}
+          </p>
+
+          {q.type === "number" ? (
+            <NumberStepper
+              key={q.key}
+              q={q}
+              value={hasNumber ? (value as number) : undefined}
+              onChange={(v) => {
+                setAnswer(q.key, v as SurveyAnswers[typeof q.key]);
+                setVoiceState("recognized");
+                setHeard("");
+                setRangeNote("");
+              }}
+            />
+          ) : (
+            <ChoiceInput
+              q={q}
+              value={value as string | number | undefined}
+              onSelect={(v) => {
+                setAnswer(q.key, v as SurveyAnswers[typeof q.key]);
+                setVoiceState("recognized");
+                setHeard("");
+                setRangeNote("");
+              }}
+            />
+          )}
+        </div>
 
         {!supported && (
           <p className="mt-5 text-sub text-[#C7503A] text-center">
             이 브라우저는 음성 인식을 지원하지 않아요.
             <br />
-            크롬(Chrome)에서 열거나 손으로 입력해 주세요.
+            아래에서 직접 골라 주세요.
           </p>
         )}
 
         <div className="flex-1" />
         </div>
 
-        {/* 하단 고정: 확인/말하기 버튼 */}
+        {/*
+          하단 고정 — 쓰는 순서대로 놓는다. 말하기(주 동작)가 위, 확인이 아래.
+          마이크 버튼 하나가 안내와 상태를 모두 맡는다.
+        */}
         <div className="shrink-0 px-gutter pt-2 pb-8 flex flex-col">
-          <button
-            onClick={goNext}
-            disabled={!answered}
-            className="h-touch rounded-btn bg-forest text-white text-[22px] font-bold flex items-center justify-center gap-2.5 active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed transition"
-          >
-            <CheckIcon size={24} stroke="#fff" width={3} />네, 맞아요
-          </button>
           <button
             onClick={handleVoice}
             disabled={listening || !supported}
-            className="mt-3 h-touch rounded-btn bg-lightgreen text-forest text-[20px] font-bold flex items-center justify-center gap-2.5 active:brightness-95 disabled:opacity-40 transition"
+            className={`h-touch rounded-btn border-[2.5px] text-[length:calc(20px*var(--ts))] font-bold flex items-center justify-center gap-2.5 active:brightness-95 disabled:opacity-60 transition ${
+              listening
+                ? "bg-lightgreen border-forest text-forest animate-pulse"
+                : "bg-lightgreen border-forest text-forest"
+            }`}
           >
-            <MicIcon size={22} />
-            {listening ? "듣는 중..." : heard ? "다시 말하기" : "눌러서 말하기"}
+            <MicIcon size={24} />
+            {listening
+              ? "듣고 있어요…"
+              : voiceState === "idle"
+              ? "여기를 누르고 말하세요"
+              : "다시 말하기"}
+          </button>
+
+          {/* 어떻게 말해야 하는지 예시 — 듣는 중에는 감춘다 */}
+          {q.voiceHint && !listening && (
+            <p className="mt-2 text-[length:calc(16px*var(--ts))] text-graytext text-center">
+              {q.voiceHint}
+            </p>
+          )}
+
+          <button
+            onClick={goNext}
+            disabled={!answered}
+            className="mt-3 h-touch rounded-btn bg-forest text-white text-[length:calc(22px*var(--ts))] font-bold flex items-center justify-center gap-2.5 active:brightness-95 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            <CheckIcon size={24} stroke="#fff" width={3} />네, 맞아요
           </button>
         </div>
+
+        <PermissionPrimer
+          kind="microphone"
+          open={micPrimer}
+          onAllow={() => {
+            setMicPrimer(false);
+            startVoice(); // 여기서 실제 브라우저 권한 창이 뜬다
+          }}
+          onSkip={() => {
+            setMicPrimer(false);
+            focusPicker(); // 음성을 안 쓰면 직접 고르기로 안내
+          }}
+          skipLabel="괜찮아요, 직접 고를게요"
+        />
       </div>
     );
   }
 
-  // ================== 터치 모드 (설문 디자인) ==================
+  // ================== 터치 모드 (설문1~10 디자인) ==================
   return (
     <ScreenFrame
       title="건강 설문"
@@ -336,45 +524,58 @@ export default function SurveyScreen() {
       progress={{ current: stepNo, total: stepTotal }}
       footer={
         <button onClick={goNext} disabled={!answered} className="btn-primary">
-          다음
+          {isLast ? "완료" : "다음"}
         </button>
       }
     >
+      {/*
+        음성으로 답하러 가는 입구.
+        예전에는 setAnswerMode 를 부르는 화면이 하나도 없어서, 음성 모드가
+        구현돼 있어도 사용자가 들어갈 방법이 없었다.
+      */}
+      {supported && (
+        <button
+          onClick={() => setAnswerMode("voice")}
+          className="mt-3 self-start flex items-center gap-2 rounded-chip bg-lightgreen text-forest font-bold px-4 py-2.5 text-[length:calc(17px*var(--ts))] active:brightness-95"
+        >
+          <MicIcon size={20} />
+          말로 답하기
+        </button>
+      )}
+
       <h1
-        className="mt-6 font-bold text-charcoal leading-[1.4] whitespace-pre-line"
-        style={{ fontSize: titleSize }}
+        className="mt-4 font-bold text-charcoal leading-[1.4] whitespace-pre-line"
+        style={{ fontSize: `calc(${titleSize}px * var(--ts))` }}
       >
         {q.title}
       </h1>
       {q.hint && (
-        <p className="mt-2.5 text-[18px] text-graytext">{q.hint}</p>
+        <p className="mt-2.5 text-[length:calc(18px*var(--ts))] text-graytext">{q.hint}</p>
       )}
 
       {q.type === "number" ? (
-        <>
+        q.key === "age" ? (
+          <WheelPicker
+            key={q.key}
+            min={q.min ?? 30}
+            max={q.max ?? 100}
+            unit={q.unit ?? ""}
+            value={hasNumber ? (value as number) : undefined}
+            onChange={(v) =>
+              setAnswer(q.key, v as SurveyAnswers[typeof q.key])
+            }
+            chip={(v) => `만 ${v}세`}
+          />
+        ) : (
           <NumberStepper
             key={q.key}
             q={q}
-            value={typeof value === "number" ? value : undefined}
+            value={hasNumber ? (value as number) : undefined}
             onChange={(v) =>
               setAnswer(q.key, v as SurveyAnswers[typeof q.key])
             }
           />
-          {q.skip && (
-            <button
-              onClick={() =>
-                setAnswer(q.key, q.skip!.value as SurveyAnswers[typeof q.key])
-              }
-              className={`mt-4 w-full h-touch rounded-btn border-2 text-btn flex items-center justify-center transition active:brightness-95 ${
-                value === q.skip.value
-                  ? "border-forest bg-lightgreen text-forest"
-                  : "border-borderline bg-white text-graytext"
-              }`}
-            >
-              {q.skip.label}
-            </button>
-          )}
-        </>
+        )
       ) : (
         <ChoiceInput
           q={q}
@@ -390,7 +591,130 @@ export default function SurveyScreen() {
   );
 }
 
-// ---------- 숫자 스테퍼 (설문1·2·4·5 디자인: − / 값+단위 / +) ----------
+// ---------- 휠 피커 (설문1 디자인: 가운데 행 #E8F0E3 하이라이트, 16/18/25px) ----------
+
+const WHEEL_ITEM = 40; // 행 높이(px)
+const WHEEL_HEIGHT = WHEEL_ITEM * 5; // 5행 노출
+
+function WheelPicker({
+  min,
+  max,
+  unit,
+  value,
+  onChange,
+  chip,
+}: {
+  min: number;
+  max: number;
+  unit: string;
+  value?: number;
+  onChange: (v: number) => void;
+  chip?: (v: number) => string;
+}) {
+  const values: number[] = [];
+  for (let v = min; v <= max; v++) values.push(v);
+  const mid = Math.round((min + max) / 2);
+
+  const ref = useRef<HTMLDivElement>(null);
+  const [centered, setCentered] = useState(value ?? mid);
+  const interacted = useRef(false);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 최초: 저장된 값(없으면 중간값) 위치로 이동
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = ((value ?? mid) - min) * WHEEL_ITEM;
+    return () => {
+      if (settle.current) clearTimeout(settle.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // persist 복원(하이드레이션)으로 저장값이 늦게 도착하면, 조작 전까지는 그 값으로 재정렬
+  useEffect(() => {
+    if (interacted.current || value == null) return;
+    const el = ref.current;
+    if (el) el.scrollTop = (value - min) * WHEEL_ITEM;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const onScroll = () => {
+    const el = ref.current;
+    if (!el) return;
+    const i = Math.max(
+      0,
+      Math.min(values.length - 1, Math.round(el.scrollTop / WHEEL_ITEM))
+    );
+    setCentered(values[i]);
+    if (!interacted.current) return; // 초기 위치 이동은 답으로 기록하지 않음
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => onChange(values[i]), 150);
+  };
+
+  const markInteracted = () => {
+    interacted.current = true;
+  };
+
+  return (
+    <div>
+      <div className="mt-6 bg-white border-2 border-borderline rounded-field px-2.5 py-3 relative">
+        {/* 가운데 하이라이트 바 */}
+        <div className="absolute left-2.5 right-2.5 top-1/2 -translate-y-1/2 h-12 bg-lightgreen rounded-chip pointer-events-none" />
+        <div
+          ref={ref}
+          onScroll={onScroll}
+          onPointerDown={markInteracted}
+          onWheel={markInteracted}
+          onTouchStart={markInteracted}
+          className="relative overflow-y-auto snap-y snap-mandatory [&::-webkit-scrollbar]:hidden"
+          style={{ height: WHEEL_HEIGHT, scrollbarWidth: "none" }}
+          role="listbox"
+          aria-label={`${min}부터 ${max}까지 선택`}
+        >
+          <div style={{ height: (WHEEL_HEIGHT - WHEEL_ITEM) / 2 }} />
+          {values.map((v) => {
+            const d = Math.abs(v - centered);
+            return (
+              <div
+                key={v}
+                role="option"
+                aria-selected={v === centered}
+                onClick={() => {
+                  markInteracted();
+                  ref.current?.scrollTo({
+                    top: (v - min) * WHEEL_ITEM,
+                    behavior: "smooth",
+                  });
+                }}
+                className={`snap-center flex items-center justify-center ${
+                  d === 0
+                    ? "text-[length:calc(25px*var(--ts))] font-bold text-charcoal"
+                    : d === 1
+                    ? "text-[length:calc(18px*var(--ts))] text-[#9A968A]"
+                    : "text-[length:calc(16px*var(--ts))] text-[#C9C5B8]"
+                }`}
+                style={{ height: WHEEL_ITEM }}
+              >
+                {v}
+                {unit}
+              </div>
+            );
+          })}
+          <div style={{ height: (WHEEL_HEIGHT - WHEEL_ITEM) / 2 }} />
+        </div>
+      </div>
+      {chip && (
+        <div className="mt-2.5 flex">
+          <span className="text-[length:calc(16px*var(--ts))] font-bold text-forest bg-lightgreen rounded-chip px-3.5 py-[5px]">
+            {chip(centered)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- 숫자 스테퍼 (설문2·3·5·6 디자인: − / 값+단위 / +) ----------
 
 function NumberStepper({
   q,
@@ -441,7 +765,7 @@ function NumberStepper({
       <button
         {...holdProps(-1)}
         aria-label="줄이기 (길게 누르면 빠르게)"
-        className="w-touch h-touch rounded-field bg-lightgreen text-forest text-[34px] font-bold shrink-0 flex items-center justify-center active:brightness-95 transition select-none touch-none"
+        className="w-touch h-touch rounded-field bg-lightgreen text-forest text-[length:calc(34px*var(--ts))] font-bold shrink-0 flex items-center justify-center active:brightness-95 transition select-none touch-none"
       >
         −
       </button>
@@ -458,17 +782,17 @@ function NumberStepper({
               : onChange(Number(e.target.value))
           }
           placeholder={String(mid)}
-          className="w-20 bg-transparent text-center text-[28px] font-bold text-charcoal placeholder:text-borderline outline-none"
+          className="w-20 bg-transparent text-center text-[length:calc(28px*var(--ts))] font-bold text-charcoal placeholder:text-borderline outline-none"
           aria-label={q.title.replace(/\n/g, " ")}
         />
         {q.unit && (
-          <span className="text-[20px] text-graytext">{q.unit}</span>
+          <span className="text-[length:calc(20px*var(--ts))] text-graytext">{q.unit}</span>
         )}
       </div>
       <button
         {...holdProps(1)}
         aria-label="늘리기 (길게 누르면 빠르게)"
-        className="w-touch h-touch rounded-field bg-forest text-white text-[34px] font-bold shrink-0 flex items-center justify-center active:brightness-95 transition select-none touch-none"
+        className="w-touch h-touch rounded-field bg-forest text-white text-[length:calc(34px*var(--ts))] font-bold shrink-0 flex items-center justify-center active:brightness-95 transition select-none touch-none"
       >
         +
       </button>
@@ -476,7 +800,7 @@ function NumberStepper({
   );
 }
 
-// ---------- 선택형 버튼 (설문3·6~9 디자인: 흰 배경 → 선택 시 연녹+포레스트) ----------
+// ---------- 선택형 버튼 (설문4·7~10 디자인: 흰 배경 → 선택 시 연녹+포레스트) ----------
 
 function ChoiceInput({
   q,
@@ -496,7 +820,7 @@ function ChoiceInput({
             key={String(c.value)}
             onClick={() => onSelect(c.value)}
             aria-pressed={selected}
-            className={`min-h-[64px] rounded-field flex items-center px-[22px] gap-2.5 text-[20px] text-left transition active:brightness-95 ${
+            className={`min-h-[64px] rounded-field flex items-center px-[22px] gap-2.5 text-[length:calc(20px*var(--ts))] text-left transition active:brightness-95 ${
               selected
                 ? "bg-lightgreen border-[2.5px] border-forest font-bold text-forest"
                 : "bg-white border-2 border-borderline font-medium text-charcoal"
