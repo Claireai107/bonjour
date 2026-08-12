@@ -138,3 +138,12 @@ test("설문 안에서도 답변 방식을 바꿀 수 있다", () => {
   assert.match(survey, /setAnswerMode\("voice"\)/);
   assert.match(survey, /setAnswerMode\("hand"\)/);
 });
+
+test("설문 없이 분석 화면에 들어오면 가짜 분석 대신 온보딩으로 보낸다", () => {
+  const analysis = read("app/analysis/page.tsx");
+  assert.match(analysis, /router\.replace\("\/onboarding"\)/);
+  // 가드가 runAnalysis 보다 먼저 와야 한다
+  const guardIdx = analysis.indexOf('router.replace("/onboarding")');
+  const runIdx = analysis.indexOf("runAnalysis()");
+  assert.ok(guardIdx !== -1 && guardIdx < runIdx, "가드가 분석 실행보다 앞서야 한다");
+});

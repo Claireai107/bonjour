@@ -36,6 +36,13 @@ export default function AnalysisScreen() {
   const analysisStarted = useRef(false);
 
   useEffect(() => {
+    // 설문을 하나도 안 한 상태로 들어오면(직접 URL 진입·중간 이탈 복귀 등)
+    // 중앙값으로 가짜 분석이 돌지 않게 답변 방식 선택부터 다시 시작한다
+    const a = useBonJour.getState().answers;
+    if (a.height == null && a.menopause == null) {
+      router.replace("/onboarding");
+      return;
+    }
     // React Strict Mode가 개발 환경에서 effect를 재실행해도 이력은 1건만 저장
     if (!analysisStarted.current) {
       analysisStarted.current = true;
