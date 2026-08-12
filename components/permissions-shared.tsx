@@ -2,6 +2,8 @@
 
 // 권한 온보딩(/permissions)과 앱 설정(/settings)이 공유하는 권한 카드 정의 + 순차 요청.
 
+import type { JSX } from "react";
+
 export type PermKey = "geolocation" | "camera" | "microphone";
 
 export interface PermCard {
