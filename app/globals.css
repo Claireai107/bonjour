@@ -15,6 +15,18 @@ body {
   color: #2b2b2b;
   -webkit-font-smoothing: antialiased;
   font-size: calc(18px * var(--ts)); /* 시니어 친화 base */
+  /* 한국어 줄바꿈: 단어(어절) 단위로만 줄을 바꾼다 — 글자 크기를 키웠을 때
+     단어 중간이 끊기거나 조사 한 글자만 다음 줄로 떨어지는 것 방지 */
+  word-break: keep-all;
+  overflow-wrap: break-word; /* 영문 긴 단어·URL이 프레임을 밀어내지 않게 안전망 */
+}
+
+/* 제목·굵은 안내문은 줄 길이를 고르게 나눠 외톨이 단어(한 글자 줄)를 줄인다.
+   text-wrap: pretty 미지원 브라우저에서는 그냥 무시된다. */
+h1,
+h2,
+h3 {
+  text-wrap: pretty;
 }
 
 /*

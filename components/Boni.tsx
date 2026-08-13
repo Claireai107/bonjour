@@ -48,6 +48,10 @@ export function avatarPose(v?: string): BoniPose {
   return AVATARS.includes(v as BoniPose) ? (v as BoniPose) : "face";
 }
 
+// 글자 크기(--ts)가 커지면 본이는 반대로 줄어 글 영역을 넓혀준다.
+// 단, 원래 크기의 70% 아래로는 줄지 않는다(알아볼 수 있는 최소 크기).
+const BONI_MIN_RATIO = 0.7;
+
 export default function Boni({
   pose = "hello",
   size = 96,
@@ -57,11 +61,15 @@ export default function Boni({
   size?: number; // 렌더 높이(px) — 디자인은 높이 기준으로 배치
   className?: string;
 }) {
+  const min = Math.round(size * BONI_MIN_RATIO);
   return (
     <img
       src={`/boni-${pose}.png`}
       alt={`마스코트 본이 (${LABEL[pose]})`}
-      style={{ height: size, width: "auto" }}
+      style={{
+        height: `max(${min}px, calc(${size}px / var(--ts, 1)))`,
+        width: "auto",
+      }}
       className={className}
       draggable={false}
     />

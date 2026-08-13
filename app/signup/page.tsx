@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useBonJour } from "@/lib/store";
 import PostcodeSearch from "@/components/PostcodeSearch";
+import Dialog from "@/components/Dialog";
 import { ConsentSheet, type ConsentDoc } from "@/components/PrivacyPolicy";
 
 // 화면 5a · 회원가입 — 휴대폰 인증 → 동의 → 서버 가입(DB 저장). 스플래시 → 회원가입 → 홈
@@ -69,6 +70,7 @@ export default function SignupScreen() {
   const [agreeLocation, setAgreeLocation] = useState(false);   // 위치정보 (선택)
   const [openDoc, setOpenDoc] = useState<ConsentDoc | null>(null);
   const [formErr, setFormErr] = useState("");
+  const [needVerify, setNeedVerify] = useState(false); // 인증 없이 가입 시도 시 안내
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -213,16 +215,21 @@ export default function SignupScreen() {
     age -= 1;
   }
 
+  // 휴대폰 인증(verified)은 버튼 활성화 조건에서 빼고, 클릭 시 안내로 알려준다
+  // — 왜 비활성인지 모른 채 버튼만 눌러보는 상황 방지
   const canSubmit =
     name.trim().length > 0 &&
     gender != null &&
-    verified &&
     agreePrivacy &&
     agreeSensitive &&
     password.length >= 8;
 
   const submit = async () => {
     if (!canSubmit || busy) return;
+    if (!verified) {
+      setNeedVerify(true);
+      return;
+    }
     setBusy(true);
     setFormErr("");
     try {
@@ -749,6 +756,13 @@ export default function SignupScreen() {
           if (d === "sensitive") setAgreeSensitive(true);
           if (d === "location") setAgreeLocation(true);
         }}
+      />
+
+      {/* 인증 없이 가입하기를 누른 경우 안내 */}
+      <Dialog
+        open={needVerify}
+        message={"핸드폰 번호를 인증해주세요."}
+        onConfirm={() => setNeedVerify(false)}
       />
     </div>
   );

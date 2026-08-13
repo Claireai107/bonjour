@@ -38,13 +38,13 @@ export default function PageHeader({
             </svg>
           </button>
         )}
-        <h1 className="flex-1 min-w-0 text-[24px] font-bold text-charcoal whitespace-nowrap truncate">
+        <h1 className="flex-1 min-w-0 text-[length:calc(24px*var(--ts))] font-bold text-charcoal whitespace-nowrap truncate">
           {title}
         </h1>
         {right != null && <div className="shrink-0">{right}</div>}
       </div>
       {subtitle && (
-        <p className="mt-1 text-[15px] text-graytext whitespace-nowrap">
+        <p className="mt-1 text-[length:calc(15px*var(--ts))] text-graytext whitespace-nowrap">
           {subtitle}
         </p>
       )}

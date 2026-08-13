@@ -43,7 +43,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={noto.variable}>
+    // 부트스트랩 스크립트가 첫 그리기 전에 --ts 를 html 에 심으므로
+    // 서버 HTML 과 속성이 달라진다 — 의도된 차이라 경고를 끈다
+    <html lang="ko" className={noto.variable} suppressHydrationWarning>
       <head>
         {/* 저장해 둔 글자 크기를 첫 그리기 전에 적용 — 커졌다 작아지는 깜빡임 방지 */}
         <script dangerouslySetInnerHTML={{ __html: TEXT_SCALE_BOOTSTRAP }} />

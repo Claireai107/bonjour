@@ -8,6 +8,7 @@ import EmptyAnalysis from "@/components/EmptyAnalysis";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
 import { buildPrescription } from "@/lib/prescription";
+import TextScaleToggle from "@/components/TextScaleToggle";
 
 // 홈 탭 — 측정 데이터가 있으면 '오늘의 맞춤 루틴', 없으면 측정하러 가기
 export default function HomeScreen() {
@@ -44,6 +45,11 @@ export default function HomeScreen() {
         title={`${displayName}님, 안녕하세요!`}
         subtitle="오늘도 뼈 건강 함께 챙겨요"
       />
+
+      {/* 글자 크기 조절 — 인사말을 가리지 않게 헤더 아래 한 줄로 */}
+      <div className="shrink-0 px-gutter pb-2 flex justify-end">
+        <TextScaleToggle />
+      </div>
 
       {/* 콘텐츠 스크롤 */}
       <div className="flex-1 overflow-y-auto px-gutter pb-4 flex flex-col">
