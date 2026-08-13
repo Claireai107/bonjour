@@ -346,13 +346,13 @@ export default function SurveyScreen() {
           <div className="flex-1">
             <ProgressBar current={stepNo} total={stepTotal} />
           </div>
-          {/* 음성 모드에서 다시 손 입력으로 돌아가는 길 */}
+          {/* 음성 모드에서 다시 손 입력으로 돌아가는 길 — 우측 상단 전환 아이콘 */}
           <button
             onClick={() => setAnswerMode("hand")}
-            className="text-[length:calc(15px*var(--ts))] font-bold text-forest bg-lightgreen rounded-chip px-3 py-2 shrink-0 active:brightness-95 flex items-center gap-1.5"
+            aria-label="손으로 답하기로 전환"
+            className="w-[48px] h-[48px] rounded-full bg-lightgreen text-forest flex items-center justify-center shrink-0 active:brightness-95"
           >
             <HandIcon />
-            손으로 답하기
           </button>
         </div>
 
@@ -522,27 +522,26 @@ export default function SurveyScreen() {
       boni="point"
       onBack={goBack}
       progress={{ current: stepNo, total: stepTotal }}
+      headerRight={
+        /* 음성으로 답하러 가는 입구 — 우측 상단 전환 아이콘.
+           예전에는 setAnswerMode 를 부르는 화면이 하나도 없어서, 음성 모드가
+           구현돼 있어도 사용자가 들어갈 방법이 없었다. */
+        supported ? (
+          <button
+            onClick={() => setAnswerMode("voice")}
+            aria-label="말로 답하기로 전환"
+            className="w-[48px] h-[48px] rounded-full bg-lightgreen text-forest flex items-center justify-center active:brightness-95"
+          >
+            <MicIcon size={24} />
+          </button>
+        ) : undefined
+      }
       footer={
         <button onClick={goNext} disabled={!answered} className="btn-primary">
           {isLast ? "완료" : "다음"}
         </button>
       }
     >
-      {/*
-        음성으로 답하러 가는 입구.
-        예전에는 setAnswerMode 를 부르는 화면이 하나도 없어서, 음성 모드가
-        구현돼 있어도 사용자가 들어갈 방법이 없었다.
-      */}
-      {supported && (
-        <button
-          onClick={() => setAnswerMode("voice")}
-          className="mt-3 self-start flex items-center gap-2 rounded-chip bg-lightgreen text-forest font-bold px-4 py-2.5 text-[length:calc(17px*var(--ts))] active:brightness-95"
-        >
-          <MicIcon size={20} />
-          말로 답하기
-        </button>
-      )}
-
       <h1
         className="mt-4 font-bold text-charcoal leading-[1.4] whitespace-pre-line"
         style={{ fontSize: `calc(${titleSize}px * var(--ts))` }}

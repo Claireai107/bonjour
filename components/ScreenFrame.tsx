@@ -14,6 +14,7 @@ export default function ScreenFrame({
   progress,
   boni,
   footer,
+  headerRight,
   scroll = true,
   bg = "ivory",
 }: {
@@ -24,6 +25,7 @@ export default function ScreenFrame({
   progress?: { current: number; total: number };
   boni?: BoniPose;
   footer?: React.ReactNode; // 하단 고정 버튼 영역
+  headerRight?: React.ReactNode; // 페이지명 우측 슬롯 (모드 전환 아이콘 등)
   scroll?: boolean;
   bg?: "ivory" | "white";
 }) {
@@ -34,7 +36,7 @@ export default function ScreenFrame({
       }`}
     >
       {/* 상단 고정: 페이지명 헤더 */}
-      <PageHeader title={title} back={back} onBack={onBack} />
+      <PageHeader title={title} back={back} onBack={onBack} right={headerRight} />
 
       {/* 진행바 줄 — 헤더 아래, 본이는 우측 */}
       {progress && (
