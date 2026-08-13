@@ -8,6 +8,11 @@ import { useSpeech } from "@/lib/useSpeech";
 import TextScaleToggle from "@/components/TextScaleToggle";
 
 // 답변 방식 선택 (부록 C·G: 설문 시작 전 1회 선택)
+
+// 아이콘 타일(64px)은 글자 배율이 커지면 반대로 줄어 글 영역을 넓힌다.
+// 본이(Boni)와 같은 규칙 — 원래 크기의 70%(45px) 아래로는 줄지 않는다.
+const ICON_TILE = "max(45px, calc(64px / var(--ts, 1)))";
+
 export default function AnswerModeScreen() {
   const router = useRouter();
   const setAnswerMode = useBonJour((s) => s.setAnswerMode);
@@ -66,11 +71,14 @@ export default function AnswerModeScreen() {
           onClick={() => choose("hand")}
           className="bg-white rounded-card px-6 py-7 flex items-center gap-[18px] text-left shadow-[0_1px_6px_rgba(0,0,0,0.06)] active:brightness-95"
         >
-          <div className="w-16 h-16 rounded-field bg-lightgreen flex items-center justify-center flex-none">
+          {/* 글자가 커지면 아이콘 타일은 줄여 글 영역을 넓힌다 (하한 45px) */}
+          <div
+            className="rounded-field bg-lightgreen flex items-center justify-center flex-none"
+            style={{ width: ICON_TILE, height: ICON_TILE }}
+          >
             <svg
-              width="30"
-              height="30"
               viewBox="0 0 24 24"
+              className="w-[47%] h-[47%]"
               fill="none"
               stroke="#3E7A4E"
               strokeWidth="2.4"
@@ -108,11 +116,13 @@ export default function AnswerModeScreen() {
           disabled={!supported}
           className="bg-white rounded-card px-6 py-7 flex items-center gap-[18px] text-left shadow-[0_1px_6px_rgba(0,0,0,0.06)] active:brightness-95 disabled:opacity-50"
         >
-          <div className="w-16 h-16 rounded-field bg-lightgreen flex items-center justify-center flex-none">
+          <div
+            className="rounded-field bg-lightgreen flex items-center justify-center flex-none"
+            style={{ width: ICON_TILE, height: ICON_TILE }}
+          >
             <svg
-              width="30"
-              height="30"
               viewBox="0 0 24 24"
+              className="w-[47%] h-[47%]"
               fill="none"
               stroke="#3E7A4E"
               strokeWidth="2.4"
