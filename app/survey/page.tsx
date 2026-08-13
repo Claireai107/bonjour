@@ -822,12 +822,12 @@ function ChoiceInput({
             aria-pressed={selected}
             className={`min-h-[64px] rounded-field flex items-center px-[22px] gap-2.5 text-[length:calc(20px*var(--ts))] text-left transition active:brightness-95 ${
               selected
-                ? "bg-lightgreen border-[2.5px] border-forest font-bold text-forest"
+                ? "bg-forest border-[2.5px] border-forest font-bold text-white"
                 : "bg-white border-2 border-borderline font-medium text-charcoal"
             }`}
           >
             <span className="flex-1">{c.label}</span>
-            {selected && <CheckIcon />}
+            {selected && <CheckIcon stroke="#FFFFFF" />}
           </button>
         );
       })}

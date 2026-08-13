@@ -103,7 +103,8 @@ h3 {
            px-5 py-4 text-body text-charcoal text-left flex items-center justify-between
            active:brightness-95 transition;
   }
+  /* 선택 상태는 '반전' — 짙은 배경 + 흰 글씨 (테두리만 바꾸지 않는다) */
   .choice-selected {
-    @apply border-forest bg-lightgreen font-bold;
+    @apply border-forest bg-forest text-white font-bold;
   }
 }

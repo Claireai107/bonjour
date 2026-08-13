@@ -158,7 +158,7 @@ function ReportBody({
       </div>
 
       {/* 콘텐츠 스크롤 + 하단 탭바 고정 */}
-      <div className="flex-1 overflow-y-auto flex flex-col px-6 pb-7">
+      <div className="flex-1 overflow-y-auto flex flex-col px-gutter pb-7">
 
         {/* 구역 A · 핵심 요약 (연그린 요약존) */}
         <div className="mt-4 bg-lightgreen rounded-[24px] pt-[18px] px-4 pb-4">

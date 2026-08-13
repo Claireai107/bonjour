@@ -38,7 +38,7 @@ export default function TextScaleToggle({
               aria-label={`글자 크기 ${s.label}`}
               className={`w-[52px] h-[52px] rounded-field border-2 font-bold transition active:brightness-95 flex items-center justify-center ${
                 selected
-                  ? "bg-lightgreen border-forest text-forest"
+                  ? "bg-forest border-forest text-white"
                   : "bg-white border-borderline text-graytext"
               }`}
               style={{ fontSize: `${15 + i * 5}px` }}

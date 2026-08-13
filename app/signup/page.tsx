@@ -452,7 +452,7 @@ export default function SignupScreen() {
               onClick={() => setGender(g)}
               className={`flex-1 h-[60px] rounded-field flex items-center justify-center gap-2 transition active:brightness-95 ${
                 selected
-                  ? "bg-lightgreen border-[2.5px] border-forest text-[length:calc(19px*var(--ts))] font-bold text-forest"
+                  ? "bg-forest border-[2.5px] border-forest text-[length:calc(19px*var(--ts))] font-bold text-white"
                   : "bg-white border-2 border-borderline text-[length:calc(19px*var(--ts))] font-medium text-charcoal"
               }`}
             >
@@ -463,7 +463,7 @@ export default function SignupScreen() {
                   height="20"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#3E7A4E"
+                  stroke="#FFFFFF"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
