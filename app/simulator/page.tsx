@@ -120,8 +120,9 @@ export default function SimulatorScreen() {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <h1 className="flex-1 min-w-0 text-[length:calc(24px*var(--ts))] font-bold text-charcoal break-keep leading-[1.25]">
-          무엇을 바꾸면 좋아질까요?
+        {/* 아주 크게에서도 한 줄에 들어가도록 짧은 페이지명 사용 */}
+        <h1 className="flex-1 min-w-0 text-[length:calc(24px*var(--ts))] font-bold text-charcoal whitespace-nowrap">
+          무엇을 바꿀까요?
         </h1>
       </div>
 
@@ -228,46 +229,47 @@ export default function SimulatorScreen() {
         />
       </div>
 
+      {/* 결과 배지 + 참고 문구 — 스크롤 영역 맨 아래 */}
+      {improved > 0 && (
+        <div className="mt-[16px] bg-lightgreen rounded-card py-[14px] px-[18px] flex items-center gap-[14px]">
+          <div className="flex-1">
+            <p className="text-[length:calc(19px*var(--ts))] font-bold text-forest leading-[1.35]">
+              골절 위험이 약 {improved}% 낮아져요
+            </p>
+            {gradeChanged && (
+              <div className="mt-[6px] flex items-center gap-[8px] text-[length:calc(17px*var(--ts))]">
+                <span
+                  className="font-bold"
+                  style={{ color: GRADE_COLOR[result.grade] }}
+                >
+                  {result.grade}군
+                </span>
+                <span className="text-graytext font-bold">→</span>
+                <span
+                  className="font-bold"
+                  style={{ color: GRADE_COLOR[sim.grade] }}
+                >
+                  {sim.grade}군
+                </span>
+              </div>
+            )}
+          </div>
+          <Boni pose="praise" size={52} className="shrink-0" />
+        </div>
+      )}
+      <p className="mt-[12px] pb-2 text-[length:calc(15px*var(--ts))] text-graytext text-center leading-[1.4]">
+        예상 수치는 참고용이에요.
+        <br />
+        실제 건강 상태는 의사와 확인해 주세요.
+      </p>
+
       </div>
 
-      {/* 하단 고정: 결과 + CTA
-          결과가 스크롤 아래에 가려져 슬라이더와 같이 못 본다는 지적이 있었다(P2). */}
+      {/* 하단 고정: 실천하기 버튼 하나만 */}
       <div className="shrink-0 px-gutter pt-3 pb-2 bg-ivory">
-        {improved > 0 && (
-          <div className="mb-3 bg-lightgreen rounded-card py-[14px] px-[18px] flex items-center gap-[14px]">
-            <div className="flex-1">
-              <p className="text-[length:calc(19px*var(--ts))] font-bold text-forest leading-[1.35]">
-                골절 위험이 약 {improved}% 낮아져요
-              </p>
-              {gradeChanged && (
-                <div className="mt-[6px] flex items-center gap-[8px] text-[length:calc(17px*var(--ts))]">
-                  <span
-                    className="font-bold"
-                    style={{ color: GRADE_COLOR[result.grade] }}
-                  >
-                    {result.grade}군
-                  </span>
-                  <span className="text-graytext font-bold">→</span>
-                  <span
-                    className="font-bold"
-                    style={{ color: GRADE_COLOR[sim.grade] }}
-                  >
-                    {sim.grade}군
-                  </span>
-                </div>
-              )}
-            </div>
-            <Boni pose="praise" size={52} className="shrink-0" />
-          </div>
-        )}
         <button onClick={proceed} className="btn-primary">
           이 계획으로 실천하기
         </button>
-        <p className="mt-[8px] text-[length:calc(15px*var(--ts))] text-graytext text-center leading-[1.4]">
-          예상 수치는 참고용이에요.
-          <br />
-          실제 건강 상태는 의사와 확인해 주세요.
-        </p>
       </div>
       <TabBar />
 
