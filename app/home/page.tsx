@@ -46,10 +46,13 @@ export default function HomeScreen() {
         subtitle="오늘도 뼈 건강 함께 챙겨요"
       />
 
-      {/* 글자 크기 조절 — 인사말을 가리지 않게 헤더 아래 한 줄로 */}
-      <div className="shrink-0 px-gutter pb-2 flex justify-end">
-        <TextScaleToggle />
-      </div>
+      {/* 글자 크기 조절 — 첫 사용(분석 전)에만 홈에 노출.
+          분석 후에는 리포트·설정에서 바꿀 수 있다 */}
+      {!result && (
+        <div className="shrink-0 px-gutter pb-2 flex justify-end">
+          <TextScaleToggle />
+        </div>
+      )}
 
       {/* 콘텐츠 스크롤 */}
       <div className="flex-1 overflow-y-auto px-gutter pb-4 flex flex-col">

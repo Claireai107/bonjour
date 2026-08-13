@@ -27,10 +27,13 @@ export default function FactorBar({
 
   return (
     <div>
-      <div className="flex justify-between items-baseline text-[length:calc(16px*var(--ts))] mb-[6px]">
-        <span className="font-medium text-charcoal">{factor.label}</span>
+      {/* 글자가 커져 한 줄에 안 들어가면 라벨과 값이 각각 온전한 채로 줄이 나뉜다 */}
+      <div className="flex flex-wrap justify-between items-baseline gap-x-2 text-[length:calc(16px*var(--ts))] mb-[6px]">
+        <span className="font-medium text-charcoal whitespace-nowrap">
+          {factor.label}
+        </span>
         <span
-          className="font-bold"
+          className="font-bold whitespace-nowrap ml-auto"
           style={{ color: lowers ? "#C7503A" : "#3E7A4E" }}
         >
           점수를 {points}점 {lowers ? "낮췄어요" : "올렸어요"}
@@ -56,10 +59,12 @@ export default function FactorBar({
 
 /** 막대 위에 한 번만 붙이는 좌우 안내 (항목마다 반복하지 않는다) */
 export function FactorBarLegend() {
+  // 글자가 커져 한 줄에 안 들어가면 문구가 뒤엉키지 않게
+  // 각 문구는 통째로 유지하고(줄바꿈 금지) 두 줄로 나눠 떨어지게 한다
   return (
-    <div className="flex justify-between text-[length:calc(15px*var(--ts))] text-graytext">
-      <span>← 점수를 낮춘 항목</span>
-      <span>점수를 올려준 항목 →</span>
+    <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-[length:calc(15px*var(--ts))] text-graytext">
+      <span className="whitespace-nowrap">← 점수를 낮춘 항목</span>
+      <span className="whitespace-nowrap ml-auto">점수를 올려준 항목 →</span>
     </div>
   );
 }

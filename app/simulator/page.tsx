@@ -120,7 +120,7 @@ export default function SimulatorScreen() {
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <h1 className="text-[length:calc(24px*var(--ts))] font-bold text-charcoal whitespace-nowrap truncate">
+        <h1 className="flex-1 min-w-0 text-[length:calc(24px*var(--ts))] font-bold text-charcoal break-keep leading-[1.25]">
           무엇을 바꾸면 좋아질까요?
         </h1>
       </div>
@@ -229,7 +229,7 @@ export default function SimulatorScreen() {
 
       {/* 하단 고정: 결과 + CTA
           결과가 스크롤 아래에 가려져 슬라이더와 같이 못 본다는 지적이 있었다(P2). */}
-      <div className="shrink-0 px-gutter pt-3 pb-8 bg-ivory">
+      <div className="shrink-0 px-gutter pt-3 pb-2 bg-ivory">
         {improved > 0 && (
           <div className="mb-3 bg-lightgreen rounded-card py-[14px] px-[18px] flex items-center gap-[14px]">
             <div className="flex-1">
@@ -260,7 +260,7 @@ export default function SimulatorScreen() {
         <button onClick={proceed} className="btn-primary">
           이 계획으로 실천하기
         </button>
-        <p className="mt-[10px] text-[length:calc(15px*var(--ts))] text-graytext text-center leading-[1.5]">
+        <p className="mt-[8px] text-[length:calc(15px*var(--ts))] text-graytext text-center leading-[1.4]">
           예상 수치는 참고용이에요.
           <br />
           실제 건강 상태는 의사와 확인해 주세요.

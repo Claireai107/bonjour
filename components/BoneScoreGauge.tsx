@@ -21,8 +21,12 @@ export default function BoneScoreGauge({
   const c = 2 * Math.PI * 50; // ≈ 314
   const pct = Math.max(0, Math.min(100, score)) / 100;
 
+  // 글자 배율이 커지면 게이지는 반대로 줄여 옆 문구가 한 단어씩 떨어지지 않게 한다.
+  // 본이(Boni)와 같은 규칙 — 하한은 원래 크기의 75%.
+  const dim = `max(${Math.round(size * 0.75)}px, calc(${size}px / var(--ts, 1)))`;
+
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120">
+    <svg style={{ width: dim, height: dim }} viewBox="0 0 120 120">
       <circle cx="60" cy="60" r="50" fill="none" stroke="#E8F0E3" strokeWidth="12" />
       <circle
         cx="60"

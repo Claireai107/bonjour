@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TabBar from "@/components/TabBar";
+import TextScaleToggle from "@/components/TextScaleToggle";
 import {
   PERM_CARDS,
   requestAllPermissions,
@@ -61,7 +62,17 @@ export default function SettingsScreen() {
       <PageHeader title="앱 설정" back />
 
       <div className="flex-1 overflow-y-auto px-gutter pb-6">
-        <h2 className="mt-2 text-[16px] font-bold text-charcoal">권한 관리</h2>
+        {/* 글자 크기 — 리포트·홈에서도 바꿀 수 있지만, 설정에서도 찾을 수 있어야 한다 */}
+        <h2 className="mt-2 text-[length:calc(16px*var(--ts))] font-bold text-charcoal">
+          글자 크기
+        </h2>
+        <div className="mt-3 bg-white rounded-card px-5 py-4">
+          <TextScaleToggle showLabel={false} />
+        </div>
+
+        <h2 className="mt-6 text-[length:calc(16px*var(--ts))] font-bold text-charcoal">
+          권한 관리
+        </h2>
 
         <div className="mt-3 flex flex-col gap-3">
           {PERM_CARDS.map((c) => {

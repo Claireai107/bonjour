@@ -120,7 +120,8 @@ function ReportBody({
 
   return (
     <>
-      <div className="shrink-0 px-gutter pb-3 -mt-1 flex items-center justify-between gap-3">
+      {/* 글자가 커져 한 줄에 안 들어가면 토글이 아랫줄로 내려간다 (프레임 밖 넘침 방지) */}
+      <div className="shrink-0 px-gutter pb-3 -mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="relative inline-block">
           <select
             value={sel}
@@ -149,7 +150,7 @@ function ReportBody({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </div>
-        <TextScaleToggle />
+        <TextScaleToggle className="ml-auto" />
       </div>
 
       {/* 콘텐츠 스크롤 + 하단 탭바 고정 */}
@@ -161,17 +162,21 @@ function ReportBody({
             핵심 요약
           </div>
 
-          {/* 점수 게이지 + 등급 */}
-          <div className="mt-[10px] bg-white rounded-card px-5 py-[18px] flex items-center gap-5">
+          {/* 점수 게이지 + 등급 — 글자가 커져 옆 폭이 모자라면
+              문구 블록이 게이지 아래로 통째로 내려가 전체 폭을 쓴다 */}
+          <div className="mt-[10px] bg-white rounded-card px-5 py-[18px] flex flex-wrap items-center gap-4">
             <BoneScoreGauge score={result.boneScore} grade={result.grade} />
-            <div className="flex-1">
+            {/* 최소폭을 배율에 연동: 보통 크기(120px)에선 게이지 옆에 붙고,
+                아주 크게(156px)에선 아래로 내려가 전체 폭을 쓴다.
+                주의: rem 기준이 18px(html font-size)라 px-5·gap-4가 22.5px·18px로 계산된다 */}
+            <div className="flex-1" style={{ minWidth: "calc(120px * var(--ts, 1))" }}>
               <div
-                className="inline-block text-[19px] font-bold rounded-chip px-4 py-[5px]"
+                className="inline-block text-[length:calc(19px*var(--ts))] font-bold rounded-chip px-4 py-[5px]"
                 style={{ backgroundColor: badge.bg, color: badge.color }}
               >
                 {badge.label}
               </div>
-              <div className="mt-2 text-[17px] text-charcoal leading-[1.45]">
+              <div className="mt-2 text-[length:calc(17px*var(--ts))] text-charcoal leading-[1.45]">
                 같은 연령대에서
                 <br />
                 {GRADE_PHRASE[result.grade]}
