@@ -207,11 +207,9 @@ export default function SimulatorScreen() {
         </p>
       </div>
 
-      {/* 안내 칩 — 점수 카드 제목 옆에 있던 것을 슬라이더 바로 위로 내렸다 */}
-      <div className="mt-[16px] flex justify-center">
-        <span className="text-[length:calc(15px*var(--ts))] font-bold text-graytext bg-lightgreen rounded-chip px-[14px] py-[6px]">
-          아래 슬라이더를 움직여보세요
-        </span>
+      {/* 안내 — 슬라이더 바로 위, 다른 카드와 같은 전체 너비 */}
+      <div className="mt-[16px] bg-lightgreen rounded-card py-[12px] px-[18px] text-center text-[length:calc(15px*var(--ts))] font-bold text-graytext">
+        아래 슬라이더를 움직여보세요
       </div>
 
       {/* 슬라이더 카드 (통제 가능 변수만) */}
