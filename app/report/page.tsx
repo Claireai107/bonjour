@@ -12,6 +12,7 @@ import { useHydrated } from "@/lib/useHydrated";
 import PageHeader from "@/components/PageHeader";
 import EmptyAnalysis from "@/components/EmptyAnalysis";
 import reportHistory from "@/lib/reportHistory";
+import { useTextScale } from "@/lib/textScale";
 import type { RiskGrade, SurveyAnswers, ReportEntry } from "@/lib/types";
 
 const { buildReportHistory, clampReportSelection } = reportHistory;
@@ -106,6 +107,9 @@ function ReportBody({
 }) {
   const router = useRouter();
   const result = history[clampReportSelection(sel, history.length)].result;
+  // 글자 크기를 키우면 핵심 요약 문구가 게이지 아래로 내려간다 → 그때는 중앙 정렬
+  const { scale } = useTextScale();
+  const stacked = scale !== "normal";
 
   const maxAbs = Math.max(
     0.01,
@@ -162,14 +166,16 @@ function ReportBody({
             핵심 요약
           </div>
 
-          {/* 점수 게이지 + 등급 — 글자가 커져 옆 폭이 모자라면
-              문구 블록이 게이지 아래로 통째로 내려가 전체 폭을 쓴다 */}
-          <div className="mt-[10px] bg-white rounded-card px-5 py-[18px] flex flex-wrap items-center gap-4">
+          {/* 점수 게이지 + 등급 — 보통 크기에선 게이지 옆에 문구,
+              글자를 키우면(크게·아주 크게) 옆 폭이 모자라므로
+              게이지 아래로 내려 세로 중앙 정렬로 보여준다 */}
+          <div
+            className={`mt-[10px] bg-white rounded-card px-5 py-[18px] flex items-center gap-4 ${
+              stacked ? "flex-col text-center" : ""
+            }`}
+          >
             <BoneScoreGauge score={result.boneScore} grade={result.grade} />
-            {/* 최소폭을 배율에 연동: 보통 크기(120px)에선 게이지 옆에 붙고,
-                아주 크게(156px)에선 아래로 내려가 전체 폭을 쓴다.
-                주의: rem 기준이 18px(html font-size)라 px-5·gap-4가 22.5px·18px로 계산된다 */}
-            <div className="flex-1" style={{ minWidth: "calc(120px * var(--ts, 1))" }}>
+            <div className={stacked ? "w-full" : "flex-1"}>
               <div
                 className="inline-block text-[length:calc(19px*var(--ts))] font-bold rounded-chip px-4 py-[5px]"
                 style={{ backgroundColor: badge.bg, color: badge.color }}

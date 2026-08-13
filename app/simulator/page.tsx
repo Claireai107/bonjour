@@ -129,12 +129,9 @@ export default function SimulatorScreen() {
       <div className="flex-1 overflow-y-auto px-gutter pb-4 flex flex-col [&>*]:shrink-0">
       {/* 지금 점수 — 숫자가 움직여야 바뀐 걸 알아챈다 (P1) */}
       <div className="mt-[20px] bg-white rounded-card pt-[18px] px-[24px] pb-[16px] shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center justify-between mb-[10px]">
+        <div className="mb-[10px]">
           <span className="text-[length:calc(18px*var(--ts))] font-bold text-charcoal">
             바꿨을 때 뼈 건강 점수
-          </span>
-          <span className="text-[length:calc(15px*var(--ts))] font-bold text-graytext bg-lightgreen rounded-chip px-[12px] py-[4px]">
-            아래 슬라이더를 움직여보세요
           </span>
         </div>
 
@@ -209,11 +206,17 @@ export default function SimulatorScreen() {
         </p>
       </div>
 
+      {/* 안내 칩 — 점수 카드 제목 옆에 있던 것을 슬라이더 바로 위로 내렸다 */}
+      <div className="mt-[16px] flex justify-center">
+        <span className="text-[length:calc(15px*var(--ts))] font-bold text-graytext bg-lightgreen rounded-chip px-[14px] py-[6px]">
+          아래 슬라이더를 움직여보세요
+        </span>
+      </div>
+
       {/* 슬라이더 카드 (통제 가능 변수만) */}
-      <div className="mt-[16px] bg-white rounded-card py-[22px] px-[24px] flex flex-col gap-[24px] shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
+      <div className="mt-[10px] bg-white rounded-card py-[22px] px-[24px] flex flex-col gap-[24px] shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
         <SliderRow
           label="주간 근력운동"
-          hint="직접 움직여서 바꿔보세요"
           value={strength}
           min={0}
           max={7}

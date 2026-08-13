@@ -36,7 +36,7 @@ export default function TextScaleToggle({
               onClick={() => change(s.key)}
               aria-pressed={selected}
               aria-label={`글자 크기 ${s.label}`}
-              className={`min-w-[48px] h-12 px-3 rounded-field border-2 font-bold transition active:brightness-95 ${
+              className={`w-[52px] h-[52px] rounded-field border-2 font-bold transition active:brightness-95 flex items-center justify-center ${
                 selected
                   ? "bg-lightgreen border-forest text-forest"
                   : "bg-white border-borderline text-graytext"

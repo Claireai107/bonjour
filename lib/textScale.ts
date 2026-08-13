@@ -23,6 +23,9 @@ export const TEXT_SCALES = [
 export type TextScaleKey = (typeof TEXT_SCALES)[number]["key"];
 
 const STORAGE_KEY = "bonjour.textScale";
+// 같은 화면 안의 다른 컴포넌트도 배율 변경을 바로 알 수 있게 이벤트로 알린다
+// (훅의 useState는 컴포넌트마다 따로라, 이벤트 없이는 토글을 누른 쪽만 갱신된다)
+const CHANGE_EVENT = "bonjour-text-scale-change";
 
 function apply(value: number) {
   if (typeof document === "undefined") return;
@@ -51,6 +54,13 @@ export function useTextScale() {
     } catch {
       /* localStorage 를 못 쓰는 환경이면 기본값으로 둔다 */
     }
+    // 다른 컴포넌트(토글)가 배율을 바꾸면 함께 갱신
+    const onChange = (e: Event) => {
+      const key = (e as CustomEvent<TextScaleKey>).detail;
+      if (TEXT_SCALES.some((s) => s.key === key)) setScale(key);
+    };
+    window.addEventListener(CHANGE_EVENT, onChange);
+    return () => window.removeEventListener(CHANGE_EVENT, onChange);
   }, []);
 
   const change = useCallback((key: TextScaleKey) => {
@@ -63,6 +73,7 @@ export function useTextScale() {
     } catch {
       /* noop */
     }
+    window.dispatchEvent(new CustomEvent<TextScaleKey>(CHANGE_EVENT, { detail: key }));
   }, []);
 
   return { scale, change };
