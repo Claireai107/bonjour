@@ -116,6 +116,23 @@ function ReportBody({
   const markerLeft = result.percentile; // percentile은 클수록 건강 → 오른쪽(건강)에 가깝게
   const delta = result.bestAchievableScore - result.boneScore;
 
+  // 적용 대상(만 20~89세 여성)이 아니면 숫자를 보여주지 않는다 — 안내만 (인계 문서 §3)
+  if (result.applicable === false) {
+    return (
+      <div className="flex-1 px-gutter flex flex-col">
+        <div className="mt-8 bg-white rounded-card px-6 py-8 text-center">
+          <Boni pose="think" size={96} className="mx-auto" />
+          <p className="mt-5 text-[length:calc(20px*var(--ts))] font-bold text-charcoal break-keep">
+            {result.comment}
+          </p>
+          <p className="mt-3 text-[length:calc(17px*var(--ts))] text-graytext leading-[1.6] break-keep">
+            {result.guidance}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* 글자가 커져 한 줄에 안 들어가면 토글이 아랫줄로 내려간다 (프레임 밖 넘침 방지) */}
@@ -202,25 +219,30 @@ function ReportBody({
             <div className="mt-[2px] text-[length:calc(18px*var(--ts))] font-bold text-forest leading-[1.45] break-keep">
               {result.peerText}
             </div>
-            <div className="relative pt-[30px] mt-1">
-              <div
-                className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
-                style={{ left: `${markerLeft}%` }}
-              >
-                <Boni pose="face" size={22} className="block" />
-                <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-forest" />
-              </div>
-              <div className="h-[10px] rounded-chip bg-[linear-gradient(90deg,#D8D8D0,#E8F0E3,#5B9A6B,#3E7A4E)]" />
-            </div>
-            <div className="flex justify-between text-[13px] text-graytext mt-[5px]">
-              <span>관리 필요</span>
-              <span>건강</span>
-            </div>
-            <div className="mt-[6px] text-center text-[13px] text-charcoal">
-              {result.percentile >= 50
-                ? "또래 평균보다 좋은 편이에요"
-                : "또래 평균보다 관리가 필요해요"}
-            </div>
+            {/* 또래 표본이 30명 미만(20~30대 등)이면 순위 마커를 그리지 않는다 */}
+            {result.peerReliable !== false && (
+              <>
+                <div className="relative pt-[30px] mt-1">
+                  <div
+                    className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+                    style={{ left: `${markerLeft}%` }}
+                  >
+                    <Boni pose="face" size={22} className="block" />
+                    <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-forest" />
+                  </div>
+                  <div className="h-[10px] rounded-chip bg-[linear-gradient(90deg,#D8D8D0,#E8F0E3,#5B9A6B,#3E7A4E)]" />
+                </div>
+                <div className="flex justify-between text-[13px] text-graytext mt-[5px]">
+                  <span>관리 필요</span>
+                  <span>건강</span>
+                </div>
+                <div className="mt-[6px] text-center text-[13px] text-charcoal">
+                  {result.percentile >= 50
+                    ? "또래 평균보다 좋은 편이에요"
+                    : "또래 평균보다 관리가 필요해요"}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -10,6 +10,7 @@ export type YesNoUnknown = "yes" | "no" | "unknown";
 export interface SurveyAnswers {
   // 필수 설문 10문항 (부록 A-1 순서 고정)
   age?: number; // 만 나이 — 설문 문항 아님, 분석 시 프로필 생년월일에서 주입
+  sex?: "여" | "남"; // 설문 문항 아님 — 프로필 성별에서 주입 (적용 대상 관문용)
   height?: number; // ① 키(cm)
   weight?: number; // ② 체중(kg)
   menopause?: MenopauseStatus; // ③ 폐경 여부 (분기 트리거)
@@ -48,9 +49,15 @@ export interface FactorContribution {
 export type RiskGrade = "안심" | "주의" | "위험";
 
 export interface PredictionResult {
+  /**
+   * 적용 대상(만 20~89세 여성)인지. false면 숫자는 의미가 없고
+   * guidance(안내 문구)만 화면에 보여준다 — 분기 화면은 만들지 않는다.
+   */
+  applicable: boolean;
+  reason: "성별" | "나이없음" | "나이범위" | "폐경연령오류" | null;
   modelUsed: ModelUsed;
-  /** 실제 사용 트랙 — 설문11(검진표 불필요) / 전체16(검진값 포함) */
-  track: "설문11" | "전체16";
+  /** 실제 사용 트랙 — 폐경전 / 설문11 / 전체16 (내부 자동 선택) */
+  track: "설문11" | "전체16" | "폐경전";
   riskProbability: number; // 0~1 — isotonic 보정된 확률 (실제 유병 수준과 일치)
   boneScore: number; // 1~99 — 또래 위험도 백분위 기반 (높을수록 좋음)
   grade: RiskGrade;
@@ -61,6 +68,8 @@ export interface PredictionResult {
   percentile: number;
   /** 또래 비교 문구 — "60대 여성 100명이 있다면, 그중 91명이 …" (화면에 그대로) */
   peerText: string;
+  /** 또래 표본이 30명 미만이면 false — 순위 마커를 그리지 않는다 (20~30대 등) */
+  peerReliable?: boolean;
   /** 등급 한마디 — 큰 제목용. "위험"만 크게 띄우지 말고 이게 주인공 */
   comment: string;
   /** 등급 안내 본문 */

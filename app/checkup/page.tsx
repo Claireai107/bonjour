@@ -15,9 +15,7 @@ type Step = "choose" | "manual" | "camera" | "recognizing" | "confirm";
 const OCR_ROWS = [
   { key: "weight", label: "체중", unit: "kg" },
   { key: "height", label: "신장", unit: "cm" },
-  { key: "chol", label: "총콜레스테롤", unit: "mg/dL" },
   { key: "alp", label: "ALP (뼈 관련 수치)", unit: "IU/L" },
-  { key: "crea", label: "크레아티닌", unit: "mg/dL" },
 ] as const;
 
 type OcrKey = (typeof OCR_ROWS)[number]["key"];
@@ -30,9 +28,7 @@ const OCR_PATTERNS: Record<
   // OCR 오독 대비 퍼지 매칭 (체중→채중/체증, ALP→AIP/A1P 등)
   weight: { kw: /[체채][중증]|몸무게|weight/i, min: 25, max: 200 },
   height: { kw: /신장|키|height/i, min: 100, max: 210 },
-  chol: { kw: /콜레스테롤|cholesterol/i, min: 80, max: 500 },
   alp: { kw: /A[LI1]P|알칼리|인산분해|phosphatase/i, min: 20, max: 500 },
-  crea: { kw: /크레아티닌|creatinine/i, min: 0.2, max: 15 },
 };
 
 // 검진표의 '정상범위(참고치)' 표기를 지운다 — 결과값만 남기기 위해.
@@ -73,11 +69,6 @@ function parseOcrText(text: string): Partial<Record<OcrKey, string>> {
     const m = flat.match(/(\d{2,3}(?:\.\d)?)\s*I?U\/?L/i);
     const n = m ? Number(m[1]) : NaN;
     if (n >= 20 && n <= 500) found.alp = String(n);
-  }
-  for (const m of flat.matchAll(/(\d+(?:\.\d+)?)\s*mg\/?d[lL]/gi)) {
-    const n = Number(m[1]);
-    if (!found.chol && n >= 80 && n <= 500) found.chol = String(n);
-    else if (!found.crea && n >= 0.2 && n < 15) found.crea = String(n);
   }
   return found;
 }
@@ -122,9 +113,7 @@ export default function CheckupScreen() {
   const [ocr, setOcr] = useState<Record<OcrKey, string>>({
     weight: "",
     height: "",
-    chol: "",
     alp: "",
-    crea: "",
   });
   // OCR이 실제로 읽어낸 항목 → "자동" 뱃지, 못 읽은 항목 → "직접 입력"
   const [autoKeys, setAutoKeys] = useState<Set<OcrKey>>(new Set());
@@ -199,7 +188,7 @@ export default function CheckupScreen() {
       if (!d?.available || !d.values) return null;
       setOcrProgress(90);
       const found: Partial<Record<OcrKey, string>> = {};
-      for (const key of ["weight", "height", "chol", "alp", "crea"] as OcrKey[]) {
+      for (const key of ["weight", "height", "alp"] as OcrKey[]) {
         const v = d.values[key];
         if (typeof v === "number" && Number.isFinite(v)) found[key] = String(v);
       }

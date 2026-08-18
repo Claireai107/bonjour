@@ -1,22 +1,17 @@
 // ============================================================
-// 예측 엔진 — 데이터팀 재분석 반영판 (2026-08-17 인계)
+// 예측 엔진 — 데이터팀 재분석 반영판 v2 (2026-08-18 인계)
 //
 // 데이터팀 bonjour_backend.py 를 그대로 TS로 옮긴 것.
 // 회귀 테스트(tests/newModel.test.mjs)가 파이썬 출력과 수치 일치를 검증한다.
 //
-// 구조: CalibratedClassifierCV(cv=5)
-//   위험확률 = 5개 폴드 평균( isotonic( 로지스틱( 표준화(입력) ) ) )
-//   각 폴드 = SimpleImputer(중앙값) → StandardScaler → LogisticRegression
-//   isotonic 보정 = 구간 선형보간 (양끝 클립)
-//
-// 기존 대비 바뀐 것 (개발서버/개발팀_인계_2026-08-17/변경사항_안내.md):
-//   · 확률 보정(isotonic) — "30%"가 실제로 30%를 뜻한다
-//   · 진짜 두 트랙: 설문11(기본) / 전체16(검진값 있을 때) 자동 선택
-//   · HE_BMI 제거, drink_ever 추가, hormone 1=있음/0=없음
-//   · 등급 경계·중앙값·표준화기준·또래분포는 전부 JSON에서만 읽는다
-//   · 점수 = 또래 위험도 백분위 기반 (확률 x100 아님)
-//   · 또래 비교 = 2024년 분포 (구: 2008~2011 코호트)
-//   · 행동 처방 = 모델기반(체중·등급이 바뀌는 근력운동만) + 지침기반 고정 카드
+// v1(08-17) 대비 바뀐 것 (개발서버/개발팀_인계_2026-08-18/변경사항_안내.md):
+//   · 3트랙 — 폐경전(신설, AUROC 0.888) / 설문11 / 전체16, 내부 자동 선택
+//   · 폐경후경과(나이-폐경연령) 파생 변수 — 폐경연령 입력이 실제로 반영된다
+//   · 점수·등급이 트랙 공통 기준 — 트랙 경계에서 점수가 튀지 않는다
+//     (점수: 전 트랙 공통 분포 백분위 / 등급: 절대 확률 주의 0.15·위험 0.35)
+//   · 적용 대상 관문 — 만 20~89세 여성만. 그 외에는 안내만 (분기 화면 없음)
+//   · 또래 비교 6개 밴드(20대~70대이상) + 표본 30명 미만이면 순위를 말하지 않음
+//   · normalize — 문자열·범위 밖 값을 계산 전에 정리
 // ============================================================
 
 import MODEL from "./model/newModelParams";
@@ -28,12 +23,12 @@ import type {
   SurveyAnswers,
 } from "./types";
 
-export type TrackName = "설문11" | "전체16";
+export type TrackName = "설문11" | "전체16" | "폐경전";
 
-type UserRecord = Record<string, number | null>;
+type UserRecord = Record<string, number | string | null>;
+type NumRecord = Record<string, number | null>;
 
 interface Fold {
-  imputerMedians: number[];
   scalerMean: number[];
   scalerScale: number[];
   coef: number[];
@@ -46,96 +41,166 @@ interface Track {
   features: string[];
   folds: Fold[];
   medians: Record<string, number>;
-  cuts: { 주의: number; 위험: number };
-  peer: Record<string, number[]>;
-  perf: Record<string, unknown>;
+  peer: Record<string, { 분포: number[]; n: number }>;
 }
 
-const TRACKS = (MODEL as { tracks: Record<string, Track> }).tracks;
-const CHECKUP_ONLY: string[] = (MODEL as { checkupOnly: string[] }).checkupOnly;
-const YEAR_STD: string[] = (MODEL as { yearStdTargets: string[] }).yearStdTargets;
-const YEAR_REF = (
-  MODEL as { yearStdRef: Record<string, { mean: number; std: number }> }
-).yearStdRef;
+const M = MODEL as unknown as {
+  gradeCuts: { 주의: number; 위험: number };
+  scoreRef: number[];
+  checkupOnly: string[];
+  yearStdTargets: string[];
+  yearStdRef: Record<string, { mean: number; std: number }>;
+  tracks: Record<string, Track>;
+};
 
-// ── 입력 변환: 앱 답변 → 백엔드 계약 (변경사항_안내.md C-1) ──────────────
-// hormone: 1=있음 / 0=없음 (구 코딩 1/2는 위험 방향이 반대로 나온다)
-// drink_ever: 음주경험 0/1 신규. 비음주자의 drink_age는 null 그대로(중앙값 대체 금지)
-// exercise: 실제 일수 [0, 1.5, 3.5, 6] — 앱 척도가 맞고 구 모델이 틀렸던 케이스
-const STRENGTH_TO_DAYS = [0, 1.5, 3.5, 6] as const;
+// ── 입력 정리 (normalize) — 문자열·불가능한 값을 계산 전에 걸러낸다 ──────
+const NUMERIC = new Set([
+  "age", "wt", "ht", "meno_age", "mens_age", "edu", "preg_n",
+  "hormone", "exercise", "drink_ever", "drink_age",
+  "alp", "wc", "pth", "fev1fvc", "sbp",
+]);
 
-export function toUser(a: SurveyAnswers, c: CheckupInputs = {}): UserRecord {
-  const drink =
-    a.drinkStartAge == null
-      ? { ever: null, age: null } // 미응답
-      : a.drinkStartAge === "none" || a.drinkStartAge <= 0
-      ? { ever: 0, age: null } // 비음주
-      : { ever: 1, age: a.drinkStartAge };
+// 사람 몸으로 가능한 범위. 벗어나면 잘못 입력한 것으로 보고 결측 처리.
+// 검진 3종은 원본값과 표준화값(±6)을 모두 받는다.
+const PLAUSIBLE: Record<string, [number, number]> = {
+  age: [18, 110], wt: [25, 200], ht: [120, 210],
+  meno_age: [20, 70], mens_age: [8, 25], edu: [1, 4],
+  preg_n: [0, 25], hormone: [0, 1], exercise: [0, 7],
+  drink_ever: [0, 1], drink_age: [5, 90],
+  alp: [-6, 2000], wc: [-6, 180], pth: [-6, 1500],
+  fev1fvc: [0.1, 1.5], sbp: [50, 300],
+};
 
-  const u: UserRecord = {
-    age: a.age ?? null,
-    wt: c.weight ?? a.weight ?? null, // 검진 실측값 > 설문 값
-    ht: c.height ?? a.height ?? null,
-    meno_age: a.menopause === "yes" ? a.menopauseAge ?? null : null,
-    mens_age: a.menarcheAge ?? null,
-    edu: a.education ?? null,
-    drink_ever: drink.ever,
-    drink_age: drink.age,
-    preg_n: a.pregnancies ?? null,
-    hormone: a.hormone === "yes" ? 1 : a.hormone === "no" ? 0 : null,
-    exercise:
-      a.strengthDays == null ? null : STRENGTH_TO_DAYS[a.strengthDays] ?? null,
-  };
-
-  // 검진표 원본값 → 모델 입력 (from_health_report와 동일)
-  //  · 폐기능 78(%) → 0.78
-  //  · alp/pth/wc 는 측정법이 시대별로 달라 2024 분포 기준 상대 위치로 표준화
-  //    (구 코드는 pth 표준화가 빠져 모든 사용자의 위험이 낮게 나왔다)
-  const checkupRaw: UserRecord = {
-    alp: c.alp ?? null,
-    wc: c.waist ?? null,
-    pth: c.pth ?? null,
-    fev1fvc: c.fev1fvc ?? null,
-    sbp: c.sbp ?? null,
-  };
-  if (checkupRaw.fev1fvc != null && checkupRaw.fev1fvc > 1) {
-    checkupRaw.fev1fvc = checkupRaw.fev1fvc / 100;
+export function normalize(user: UserRecord): NumRecord & { sex?: string | null } {
+  const out: Record<string, number | string | null> = {};
+  for (const [k, v0] of Object.entries(user ?? {})) {
+    if (!NUMERIC.has(k)) {
+      out[k] = v0;
+      continue;
+    }
+    let v: number | null = null;
+    if (v0 == null) v = null;
+    else if (typeof v0 === "string") {
+      const t = v0.trim().replace(/,/g, "");
+      if (["", "null", "None", "없음", "모름", "-"].includes(t)) v = null;
+      else {
+        const num = parseFloat(t.replace(/[^0-9.\-]/g, ""));
+        v = Number.isFinite(num) ? num : null;
+      }
+    } else {
+      v = Number.isFinite(v0) ? v0 : null;
+    }
+    if (v != null) {
+      const [lo, hi] = PLAUSIBLE[k] ?? [-1e9, 1e9];
+      if (v < lo || v > hi) v = null;
+    }
+    out[k] = v;
   }
-  for (const k of YEAR_STD) {
-    const v = checkupRaw[k];
-    if (v != null && YEAR_REF[k]) {
-      const { mean, std } = YEAR_REF[k];
-      checkupRaw[k] = (v - mean) / (std || 1);
+  return out as NumRecord & { sex?: string | null };
+}
+
+// ── 적용 대상 관문 — 만 20~89세 여성. 그 밖에는 숫자를 만들지 않는다 ─────
+export interface Eligibility {
+  applicable: boolean;
+  reason: "성별" | "나이없음" | "나이범위" | "폐경연령오류" | null;
+  text: string;
+}
+
+export function checkEligible(raw: UserRecord): Eligibility {
+  const u = normalize(raw);
+  const age = u.age as number | null;
+  const meno = u.meno_age as number | null;
+  const sex = (u as { sex?: string | null }).sex ?? null;
+
+  if (sex != null && sex !== "여") {
+    return {
+      applicable: false,
+      reason: "성별",
+      text: "이 검사는 여성의 뼈 건강을 보는 도구예요.",
+    };
+  }
+  if (age == null) {
+    return {
+      applicable: false,
+      reason: "나이없음",
+      text: "나이를 알려주시면 결과를 보여드릴 수 있어요.",
+    };
+  }
+  if (age < 20) {
+    return {
+      applicable: false,
+      reason: "나이범위",
+      text: "이 검사는 만 20세부터 봐드릴 수 있어요.",
+    };
+  }
+  if (age > 89) {
+    return {
+      applicable: false,
+      reason: "나이범위",
+      text:
+        "90세가 넘으시면 위험도를 따지기보다 병원에서 뼈 검사를 직접 받아보시는 게 좋아요. 나이만으로도 검사 대상이십니다.",
+    };
+  }
+  if (meno != null && meno > age) {
+    return {
+      applicable: false,
+      reason: "폐경연령오류",
+      text: "폐경 나이가 지금 나이보다 많아요. 다시 확인해 주세요.",
+    };
+  }
+  return { applicable: true, reason: null, text: "" };
+}
+
+// ── 파생값 (_derive) ─────────────────────────────────────────────────────
+// ① 폐경후경과 = 나이 − 폐경연령 (모델 학습 변수 — 안 채우면 폐경연령이 무시된다)
+// ② 검진 3종이 원본값(|v|>6)으로 들어오면 여기서 표준화 (정식 경로를 안 거쳐도 안전)
+const RAW_CUT = 6.0;
+
+function derive(u: NumRecord): NumRecord {
+  const out: NumRecord = { ...u };
+  const age = out.age;
+  const meno = out.meno_age;
+  if (out["폐경후경과"] == null && age != null && meno != null) {
+    out["폐경후경과"] = Math.max(0, age - meno);
+  }
+  if (out.fev1fvc != null && out.fev1fvc > 1) out.fev1fvc = out.fev1fvc / 100;
+  for (const k of M.yearStdTargets) {
+    const v = out[k];
+    if (v != null && Math.abs(v) > RAW_CUT && M.yearStdRef[k]) {
+      const { mean, std } = M.yearStdRef[k];
+      out[k] = (v - mean) / (std || 1);
     }
   }
-  return { ...u, ...checkupRaw };
+  return out;
 }
 
-// ── 트랙 선택: 검진표에서만 얻는 값이 하나라도 있으면 전체16 ─────────────
-export function chooseTrack(u: UserRecord): TrackName {
-  return CHECKUP_ONLY.some((k) => u[k] != null) ? "전체16" : "설문11";
+// ── 트랙 선택 ────────────────────────────────────────────────────────────
+//   폐경 전(폐경연령 없음) → 폐경전 / 폐경 후 + 검진값 → 전체16 / 그 외 → 설문11
+export function chooseTrack(u: NumRecord): TrackName {
+  if (u.meno_age == null) return "폐경전";
+  return M.checkupOnly.some((k) => u[k] != null) ? "전체16" : "설문11";
 }
 
 // ── 확률: 5-fold 보정 분류기 (파이썬 predict_proba와 동일) ───────────────
-function isotonic(fold: Fold, p: number): number {
+function isotonic(fold: Fold, z: number): number {
   const X = fold.isoX;
   const Y = fold.isoY;
-  if (p <= X[0]) return Y[0];
-  if (p >= X[X.length - 1]) return Y[Y.length - 1];
-  // np.interp — 구간 선형보간
+  if (z <= X[0]) return Y[0];
+  if (z >= X[X.length - 1]) return Y[Y.length - 1];
   let lo = 0;
   let hi = X.length - 1;
   while (hi - lo > 1) {
     const mid = (lo + hi) >> 1;
-    if (X[mid] <= p) lo = mid;
+    if (X[mid] <= z) lo = mid;
     else hi = mid;
   }
-  const t = (p - X[lo]) / (X[hi] - X[lo] || 1);
+  const t = (z - X[lo]) / (X[hi] - X[lo] || 1);
   return Y[lo] + t * (Y[hi] - Y[lo]);
 }
 
-function probability(u: UserRecord, track: TrackName): number {
-  const T = TRACKS[track];
+function probability(u0: NumRecord, track: TrackName): number {
+  const T = M.tracks[track];
+  const u = derive(u0);
   // _prep: 빈칸은 처리규칙 학습 중앙값으로 채운다
   const row = T.features.map((f) => (u[f] == null ? T.medians[f] : (u[f] as number)));
   let sum = 0;
@@ -146,13 +211,14 @@ function probability(u: UserRecord, track: TrackName): number {
       z += fold.coef[i] * x;
     }
     // sklearn CalibratedClassifierCV는 decision_function(선형 점수 z) 위에서
-    // isotonic을 학습한다 — 시그모이드를 거치면 안 된다 (isoX 범위가 ±3인 이유)
+    // isotonic을 학습한다 — 시그모이드를 거치면 안 된다
     sum += isotonic(fold, z);
   }
   return sum / T.folds.length;
 }
 
-// ── 등급 + 화면 문구 (백엔드 반환 문구를 그대로 출력한다) ────────────────
+// ── 등급 — 트랙 공통 절대 확률 기준 (주의 0.15 / 위험 0.35) ──────────────
+// '검사를 권할지'는 실제 위험이 정해야지, 같은 트랙 안에서의 순위가 정할 일이 아니다.
 const GRADE_TEXT: Record<RiskGrade, { 한마디: string; 안내: string }> = {
   위험: {
     한마디: "뼈 검사를 한번 받아보세요",
@@ -171,12 +237,14 @@ const GRADE_TEXT: Record<RiskGrade, { 한마디: string; 안내: string }> = {
   },
 };
 
-function gradeOf(p: number, track: TrackName): RiskGrade {
-  const cuts = TRACKS[track].cuts;
-  return p >= cuts.위험 ? "위험" : p >= cuts.주의 ? "주의" : "안심";
+// 폐경 전은 유병률이 6%로 낮다 — 지금 결과보다 '앞으로'가 중요하다.
+const PRE_MENO_NOTE =
+  " 폐경 후 5~10년이 뼈가 가장 빨리 약해지는 시기예요. 지금 챙겨두시면 그때 큰 차이가 납니다.";
+
+function gradeOf(p: number): RiskGrade {
+  return p >= M.gradeCuts.위험 ? "위험" : p >= M.gradeCuts.주의 ? "주의" : "안심";
 }
 
-// 확률 → "10명 중 몇 명" (백분율보다 훨씬 잘 전달된다. 보정했으므로 실제와 맞다)
 function 사람수로(p: number): string {
   const n = Math.round(p * 10);
   if (n <= 0) return "10명 중 1명이 안 돼요";
@@ -189,24 +257,49 @@ function 몇명(p: number): string {
   return `10명 중 ${n}명`;
 }
 
-// ── 또래 비교 — 2024년 같은 연령대 분포 ──────────────────────────────────
+// ── 점수 — 트랙 공통 분포 백분위 (높을수록 좋음) ─────────────────────────
+// 또래별 순위로 매기면 밴드 경계에서 점수가 튄다. 전체 분포 기준이라
+// 확률이 오르면 점수는 반드시 내려간다 — 트랙이 바뀌어도.
+function scoreOf(p: number): number {
+  const dist = M.scoreRef;
+  if (!dist.length) return 50;
+  let lo = 0;
+  let hi = dist.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (dist[mid] < p) lo = mid + 1;
+    else hi = mid;
+  }
+  const pctile = (lo / dist.length) * 100; // 0=가장 안전 … 100=가장 위험
+  return Math.round(Math.max(1, Math.min(99, 100 - pctile)));
+}
+
+// ── 또래 비교 — 2024년 같은 연령대 (표본 30명 미만이면 순위를 말하지 않는다) ──
 export interface PeerResult {
   band: string;
-  /** 위험도 백분위: 0=또래 중 가장 안전, 100=가장 위험 (나보다 안전한 비율) */
-  riskPercentile: number;
-  /** 화면 문구 — "상위 %" 대신 사람 수로 말한다 */
+  n: number;
+  reliable: boolean;
+  /** 위험도 백분위: 0=또래 중 가장 안전, 100=가장 위험 */
+  riskPercentile: number | null;
   text: string;
 }
 
-function peer(u: UserRecord, track: TrackName): PeerResult {
+function peer(u: NumRecord, track: TrackName): PeerResult {
   const p = probability(u, track);
   const age = (u.age as number) ?? 60;
-  const band = age < 50 ? "40대" : age < 60 ? "50대" : "60대";
-  const dist = TRACKS[track].peer[band] ?? [];
-  if (!dist.length) {
-    return { band, riskPercentile: 50, text: "또래와 비교할 자료가 아직 없어요." };
+  const band =
+    age < 30 ? "20대" : age < 40 ? "30대" : age < 50 ? "40대"
+    : age < 60 ? "50대" : age < 70 ? "60대" : "70대이상";
+  const spec = M.tracks[track].peer[band];
+  const dist = spec?.분포 ?? [];
+  const n = spec?.n ?? 0;
+  const MIN_N = 30;
+  if (n < MIN_N) {
+    return {
+      band, n, reliable: false, riskPercentile: null,
+      text: `${band} 또래와 비교할 자료가 아직 충분하지 않아요. 점수와 아래 안내를 봐주세요.`,
+    };
   }
-  // bisect_left — 나보다 위험이 낮은(더 튼튼한) 사람 수
   let lo = 0;
   let hi = dist.length;
   while (lo < hi) {
@@ -216,23 +309,15 @@ function peer(u: UserRecord, track: TrackName): PeerResult {
   }
   const pctile = Math.round((lo / dist.length) * 100);
   return {
-    band,
-    riskPercentile: pctile,
+    band, n, reliable: true, riskPercentile: pctile,
     text: `${band} 여성 100명이 있다면, 그중 ${pctile}명이 회원님보다 뼈가 튼튼해요.`,
   };
 }
 
-// ── 점수: 또래 안에서의 위치 (높을수록 좋음) ─────────────────────────────
-// (1-확률)x100은 대부분 80점대에 몰려 차이가 안 보인다.
-// 위험도 백분위 91 → 91%가 나보다 안전 → 9점.
-function scoreOf(pr: PeerResult): number {
-  return Math.round(Math.max(1, Math.min(99, 100 - pr.riskPercentile)));
-}
-
-// ── 기여도 표시(리포트 '왜 이런가요') ────────────────────────────────────
-// 폴드 평균 계수 x 표준화값. 설명용이지 처방 근거가 아니다(변경사항 A-9).
+// ── 기여도 표시(리포트 '왜 이런가요') — 설명용, 처방 근거 아님 ────────────
 const FACTOR_LABELS: Record<string, string> = {
   age: "나이",
+  폐경후경과: "폐경 후 지난 기간",
   meno_age: "폐경 나이",
   mens_age: "초경 나이",
   edu: "교육 수준",
@@ -251,25 +336,69 @@ const FACTOR_LABELS: Record<string, string> = {
 };
 const CONTROLLABLE = new Set(["wt", "exercise"]);
 
-function contributions(u: UserRecord, track: TrackName): FactorContribution[] {
-  const T = TRACKS[track];
+function contributions(u0: NumRecord, track: TrackName): FactorContribution[] {
+  const T = M.tracks[track];
+  const u = derive(u0);
+  const myScore = scoreOf(probability(u, track));
   const out: FactorContribution[] = [];
-  T.features.forEach((f, i) => {
-    if (u[f] == null) return; // 실제로 입력한 값만 설명한다
-    let c = 0;
-    for (const fold of T.folds) {
-      const x = ((u[f] as number) - fold.scalerMean[i]) / (fold.scalerScale[i] || 1);
-      c += fold.coef[i] * x;
-    }
-    c /= T.folds.length;
+  for (const f of T.features) {
+    if (u[f] == null) continue; // 실제로 입력한 값만 설명한다
+    if (f === "폐경후경과") continue; // meno_age에서 파생 — 별도 요인으로 세지 않는다
+    // "이 값이 또래 평균(학습 중앙값)이었다면 점수가 몇 점이었을까"와의 차이.
+    // 계수x표준화값(로짓)을 그대로 x100 하면 '190점' 같은 값이 나온다 —
+    // 화면의 '점수를 N점 낮췄어요'는 실제 점수 눈금으로 말해야 한다.
+    const scoreIfMedian = scoreOf(
+      probability(
+        f === "meno_age" ? { ...u, [f]: null, 폐경후경과: null } : { ...u, [f]: null },
+        track
+      )
+    );
+    const delta = scoreIfMedian - myScore; // >0 = 이 값 때문에 점수가 깎였다(위험)
+    if (delta === 0) continue; // 점수 눈금에서 차이가 없으면 말하지 않는다
     out.push({
       key: f,
       label: FACTOR_LABELS[f] ?? f,
-      contribution: c,
+      contribution: delta / 100, // FactorBar가 x100 해서 'N점'으로 표기
       controllable: CONTROLLABLE.has(f),
     });
-  });
+  }
   return out.sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+}
+
+// ── 앱 입력 → 백엔드 계약 ────────────────────────────────────────────────
+const STRENGTH_TO_DAYS = [0, 1.5, 3.5, 6] as const;
+
+export function toUser(a: SurveyAnswers, c: CheckupInputs = {}): NumRecord {
+  const drink =
+    a.drinkStartAge == null
+      ? { ever: null, age: null }
+      : a.drinkStartAge === "none" || a.drinkStartAge <= 0
+      ? { ever: 0, age: null } // 비음주 — 중앙값으로 채우지 않는다
+      : { ever: 1, age: a.drinkStartAge };
+
+  const u: UserRecord = {
+    age: a.age ?? null,
+    sex: a.sex ?? null, // 프로필 성별 (여/남) — 관문 검사용
+    wt: c.weight ?? a.weight ?? null,
+    ht: c.height ?? a.height ?? null,
+    // 폐경 '예'일 때만 폐경연령 — 없으면 폐경전 트랙으로 간다
+    meno_age: a.menopause === "yes" ? a.menopauseAge ?? null : null,
+    mens_age: a.menarcheAge ?? null,
+    edu: a.education ?? null,
+    drink_ever: drink.ever,
+    drink_age: drink.age,
+    preg_n: a.pregnancies ?? null,
+    hormone: a.hormone === "yes" ? 1 : a.hormone === "no" ? 0 : null,
+    exercise:
+      a.strengthDays == null ? null : STRENGTH_TO_DAYS[a.strengthDays] ?? null,
+    // 검진표 원본값 그대로 — derive()가 표준화한다 (pth 포함, 폐기능 % 변환)
+    alp: c.alp ?? null,
+    wc: c.waist ?? null,
+    pth: c.pth ?? null,
+    fev1fvc: c.fev1fvc ?? null,
+    sbp: c.sbp ?? null,
+  };
+  return normalize(u);
 }
 
 // ── 메인: 화면이 쓰는 예측 결과 ──────────────────────────────────────────
@@ -278,29 +407,60 @@ export function predict(
   checkup: CheckupInputs = {}
 ): PredictionResult {
   const u = toUser(answers, checkup);
+  const ok = checkEligible(u);
+  if (!ok.applicable) {
+    // 만 20~89세 여성이 아니면 숫자를 만들지 않는다 — 안내만
+    return {
+      applicable: false,
+      reason: ok.reason,
+      modelUsed: "B",
+      track: "설문11",
+      riskProbability: 0,
+      boneScore: 0,
+      grade: "안심",
+      percentile: 50,
+      peerText: "",
+      comment: "결과를 보여드릴 수 없어요",
+      guidance: ok.text,
+      easyExplain: "",
+      needsExam: false,
+      bestAchievableScore: 0,
+      riskFactors: [],
+      protectiveFactors: [],
+    };
+  }
+
   const track = chooseTrack(u);
   const p = probability(u, track);
-  const grade = gradeOf(p, track);
+  const grade = gradeOf(p);
   const pr = peer(u, track);
-  const score = scoreOf(pr);
+  const score = scoreOf(p);
   const all = contributions(u, track);
 
-  // '앞으로' 카드: 근력운동 주 3회(지침 권고치) 기준 도달 가능 점수.
-  // 주 6일 같은 목표는 학습 데이터 밖 외삽이라 쓰지 않는다(변경사항 A-8).
-  const better = { ...u, exercise: Math.max((u.exercise as number) ?? 0, 3) };
-  const bestScore = scoreOf(peer(better, track));
+  let guidance = GRADE_TEXT[grade].안내;
+  if (track === "폐경전") guidance += PRE_MENO_NOTE;
+
+  // '앞으로' 카드: 근력운동 주 3회(지침 권고치) 기준 도달 가능 점수
+  const pBetter = probability(
+    { ...u, exercise: Math.max((u.exercise as number) ?? 0, 3) },
+    track
+  );
+  const bestScore = scoreOf(pBetter);
 
   return {
+    applicable: true,
+    reason: null,
     modelUsed: track === "전체16" ? "C" : "B",
     track,
     riskProbability: Math.round(p * 1000) / 1000,
     boneScore: score,
     grade,
-    // 기존 규약(클수록 건강)과 동일: 나보다 위험이 높은 또래의 비율
-    percentile: Math.max(1, Math.min(99, 100 - pr.riskPercentile)),
+    // 기존 규약(클수록 건강)의 마커 위치 — 공통 분포 기준 점수와 동일
+    percentile: score,
     peerText: pr.text,
+    peerReliable: pr.reliable,
     comment: GRADE_TEXT[grade].한마디,
-    guidance: GRADE_TEXT[grade].안내,
+    guidance,
     easyExplain: `회원님과 비슷한 분들 중에 뼈가 약한 분이 ${사람수로(p)}.`,
     needsExam: grade === "위험",
     bestAchievableScore: Math.max(bestScore, score),
@@ -326,8 +486,8 @@ export function simulate(
   if (target.strengthDays != null) u.exercise = target.strengthDays;
   const p = probability(u, track);
   return {
-    boneScore: scoreOf(peer(u, track)),
-    grade: gradeOf(p, track),
+    boneScore: scoreOf(p),
+    grade: gradeOf(p),
     riskProbability: Math.round(p * 1000) / 1000,
   };
 }
@@ -344,10 +504,7 @@ export function optimalControllables(
   };
 }
 
-// ── 체중 민감도 — "지금 체중을 지키세요" (변경사항 A-10) ─────────────────
-// 체중은 가장 강하고 안정적인 변수지만 증량은 권할 수 없다.
-// 고령 여성의 의도치 않은 체중 감소는 골다공증의 알려진 위험 신호 —
-// 감소 경고 방향으로 쓰면 임상적으로도 옳다.
+// ── 체중 민감도 — "지금 체중을 지키세요" ─────────────────────────────────
 export interface WeightSensitivity {
   available: boolean;
   summary: string;
@@ -380,7 +537,7 @@ export function weightSensitivity(
       weight: w,
       delta,
       risk: Math.round(p * 1000) / 1000,
-      grade: gradeOf(p, track),
+      grade: gradeOf(p),
     });
   }
   const drop5 = curve.find((c) => c.delta === -5);
@@ -396,9 +553,7 @@ export function weightSensitivity(
   };
 }
 
-// ── 행동 처방 — 모델기반 + 지침기반 (변경사항 A-9) ───────────────────────
-// 이 모델은 관찰 데이터로 학습했다. "운동하면 내려간다"는 인과 주장을 하지 않는다.
-// 수치를 붙일 만큼 계수가 안정적인 것은 체중뿐이고, 그마저 증량 권고로는 못 쓴다.
+// ── 행동 처방 — 모델기반 + 지침기반 ─────────────────────────────────────
 export interface ModelAction {
   item: string;
   kind: "유지" | "회복" | "증가";
@@ -414,7 +569,6 @@ export interface GuidelineCard {
   why: string;
 }
 
-// 임상 지침 고정 카드 — 단위(mg·IU) 대신 눈에 보이는 양으로 말한다
 export const GUIDELINE_CARDS: GuidelineCard[] = [
   {
     item: "칼슘 챙겨 먹기",
@@ -464,10 +618,10 @@ export function recommendActions(
   const u = toUser(answers, checkup);
   const track = chooseTrack(u);
   const baseP = probability(u, track);
-  const baseGrade = gradeOf(baseP, track);
+  const baseGrade = gradeOf(baseP);
   const modelBased: ModelAction[] = [];
 
-  // ① 체중 — 방향은 사용자 상태에 따라: 저체중이면 회복, 아니면 유지
+  // ① 체중 — 가장 강하고 안정적인 변수. 저체중이면 회복, 아니면 유지.
   const wt = u.wt as number | null;
   const ht = u.ht as number | null;
   if (wt && ht) {
@@ -497,7 +651,7 @@ export function recommendActions(
   // ② 근력운동 — 등급이 실제로 바뀔 때만, 수치 없이
   const curEx = (u.exercise as number) ?? 0;
   if (curEx < 3) {
-    const afterGrade = gradeOf(probability({ ...u, exercise: 3 }, track), track);
+    const afterGrade = gradeOf(probability({ ...u, exercise: 3 }, track));
     if (afterGrade !== baseGrade) {
       modelBased.push({
         item: "근육 쓰는 운동 늘리기",

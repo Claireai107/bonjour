@@ -133,20 +133,25 @@ export const useBonJour = create<BonJourState>()(
 
         runAnalysis: () => {
           const { answers: raw, checkup, profiles, activeId } = get();
-          // 나이는 프로필 생년월일에서 파생 (설문에 나이 문항 없음)
-          const birth = profiles.find((p) => p.id === activeId)?.birth;
+          // 나이는 프로필 생년월일에서, 성별은 프로필에서 파생 (설문 문항 아님)
+          const active = profiles.find((p) => p.id === activeId);
           const answers = {
             ...raw,
-            age: age.ageFromBirth(birth) ?? raw.age,
+            age: age.ageFromBirth(active?.birth) ?? raw.age,
+            sex: (active?.gender === "M" ? "남" : active?.gender === "F" ? "여" : undefined) as
+              | "여"
+              | "남"
+              | undefined,
           };
           const result = predict(answers, checkup);
           const prev =
             profiles.find((p) => p.id === activeId)?.reports ?? [];
           // 분석 이력 적재 (최근 20개 유지) — 리포트 날짜 드롭다운용
-          const reports = [
-            ...prev,
-            { date: new Date().toISOString(), result },
-          ].slice(-20);
+          // 부적용(관문 탈락) 결과는 이력에 쌓지 않는다 — 점수 0이 그래프를 오염시킨다
+          const reports =
+            result.applicable === false
+              ? prev
+              : [...prev, { date: new Date().toISOString(), result }].slice(-20);
           patchActive({ answers, result, reports });
           return result;
         },
@@ -212,9 +217,9 @@ export const useBonJour = create<BonJourState>()(
       };
     },
     {
-      // v2: 재분석 모델(2026-08-17) 적용 — 구 모델로 계산된 리포트와 섞이면
-      // 같은 사람 점수가 갑자기 뛰어 보이므로 키를 바꿔 초기화한다 (인계 문서 D-2)
-      name: "bonjour-store-v2",
+      // v3: 재분석 모델 2차 개정판(2026-08-18, 3트랙·공통 점수기준) 적용 —
+      // 구 모델 리포트와 섞이면 점수가 튀므로 키를 바꿔 초기화 (인계 문서 §9)
+      name: "bonjour-store-v3",
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? sessionStorage : (undefined as any)
       ),

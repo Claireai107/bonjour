@@ -55,7 +55,7 @@ export default function HomeScreen() {
 
       {/* 콘텐츠 스크롤 */}
       <div className="flex-1 overflow-y-auto px-gutter pb-4 flex flex-col">
-        {result ? (
+        {result && result.applicable !== false ? (
           <>
             {/* Bone Score 요약 */}
             <button

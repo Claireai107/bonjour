@@ -55,7 +55,7 @@ export default function RoutineScreen() {
     <div className="h-dvh bg-ivory flex flex-col">
       <PageHeader title="AI 루틴" />
 
-      {result ? (
+      {result && result.applicable !== false ? (
         <div className="flex-1 overflow-y-auto px-gutter pb-6">
           {/* 회원님께 맞춘 안내 — 모델이 근거를 갖고 말할 수 있는 것만 */}
           {rec && rec.modelBased.length > 0 && (

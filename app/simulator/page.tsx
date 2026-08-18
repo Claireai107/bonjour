@@ -31,6 +31,9 @@ export default function SimulatorScreen() {
 
   useEffect(() => {
     if (hydrated && !result) router.replace("/survey");
+    // 적용 대상이 아니면(만 20~89세 여성 외) 리포트의 안내 화면으로
+    else if (hydrated && result && result.applicable === false)
+      router.replace("/report");
   }, [hydrated, result, router]);
 
   // 체중은 조절 대상이 아니라 고정값 — 예측과 동일하게 검진 실측값 > 설문 값 우선
@@ -85,7 +88,7 @@ export default function SimulatorScreen() {
     return () => clearTimeout(t);
   }, [sim.boneScore]);
 
-  if (!hydrated || !result) return null;
+  if (!hydrated || !result || result.applicable === false) return null;
 
   const before = result.boneScore;
   const improved = sim.boneScore - before;

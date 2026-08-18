@@ -8,7 +8,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { predict } from "../lib/predict.ts";
+import { predict, toUser } from "../lib/predict.ts";
 
 const 기본 = {
   age: 58,
@@ -38,10 +38,12 @@ test("임신 횟수를 입력하면 결과가 달라진다", () => {
   );
 });
 
-test("음주 시작 나이를 입력하면 결과가 달라진다", () => {
-  const 이른 = predict({ ...기본, drinkStartAge: 18 }, {});
-  const 늦은 = predict({ ...기본, drinkStartAge: 45 }, {});
-  assert.notEqual(이른.boneScore, 늦은.boneScore);
+test("음주 시작 나이가 모델 입력에 들어간다", () => {
+  // isotonic 보정은 계단형이라 출력이 같을 수 있고, 요인 목록은 점수를 실제로
+  // 움직인 변수만 보여준다. 여기서는 입력 계약만 확인한다.
+  const u = toUser({ ...기본, drinkStartAge: 18 }, {});
+  assert.equal(u.drink_age, 18);
+  assert.equal(u.drink_ever, 1);
 });
 
 test("술을 안 마시면(-1) 음주경험 0으로 들어가고 중앙값으로 둔갑하지 않는다", () => {
