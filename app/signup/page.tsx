@@ -45,9 +45,6 @@ export default function SignupScreen() {
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
   const [postcodeOpen, setPostcodeOpen] = useState(false);
-  // 생년월일 휠 피커를 펼쳤는지 (기본은 숫자 직접 입력)
-  // 스크롤 휠은 처음부터 펼쳐 보여준다(팀 피드백) — 접기는 토글로 가능
-  const [wheelOpen, setWheelOpen] = useState(true);
   const [geoLoading, setGeoLoading] = useState(false);
   const [addrNote, setAddrNote] = useState("");
 
@@ -484,66 +481,33 @@ export default function SignupScreen() {
         />
       </div>
 
-      {/*
-        숫자 입력이 어려운 분을 위한 대안.
-        예전 문구가 "돌려서 고르기"였는데 무슨 동작인지 안 드러난다는
-        지적이 있어, 하는 행동을 그대로 적었다.
-      */}
-      <button
-        type="button"
-        onClick={() => setWheelOpen((v) => !v)}
-        aria-expanded={wheelOpen}
-        className="mt-2 self-start flex items-center gap-2 rounded-chip bg-lightgreen text-forest font-bold px-4 py-2.5 text-[length:calc(17px*var(--ts))] active:brightness-95"
-      >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#3E7A4E"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M12 5v14M8 9l4-4 4 4M8 15l4 4 4-4" />
-        </svg>
-        {wheelOpen ? "돌림판 접기" : "밀어서 고르기 펼치기"}
-      </button>
-
-      {wheelOpen && (
-        <>
-          <p className="mt-2 text-[length:calc(16px*var(--ts))] text-graytext">
-            아래 숫자를 손가락으로 위아래로 밀어서 맞춰 주세요
-          </p>
-          <div className="mt-2 relative rounded-field bg-white border-2 border-borderline p-[10px]">
-            <div className="absolute left-[10px] right-[10px] top-1/2 -translate-y-1/2 h-[42px] bg-lightgreen rounded-chip" />
-            <div className="relative grid grid-cols-[1.3fr_1fr_1fr]">
-              <ScrollWheelColumn
-                value={bYear}
-                min={1920}
-                max={today.getFullYear()}
-                format={(v) => `${v}년`}
-                onChange={setBYear}
-              />
-              <ScrollWheelColumn
-                value={bMonth}
-                min={1}
-                max={12}
-                format={(v) => `${v}월`}
-                onChange={setBMonth}
-              />
-              <ScrollWheelColumn
-                value={day}
-                min={1}
-                max={daysInMonth}
-                format={(v) => `${v}일`}
-                onChange={setBDay}
-              />
-            </div>
-          </div>
-        </>
-      )}
+      {/* 스크롤 휠 — 항상 표시 (숫자 직접 입력과 병행) */}
+      <div className="mt-2 relative rounded-field bg-white border-2 border-borderline p-[10px]">
+        <div className="absolute left-[10px] right-[10px] top-1/2 -translate-y-1/2 h-[42px] bg-lightgreen rounded-chip" />
+        <div className="relative grid grid-cols-[1.3fr_1fr_1fr]">
+          <ScrollWheelColumn
+            value={bYear}
+            min={1920}
+            max={today.getFullYear()}
+            format={(v) => `${v}년`}
+            onChange={setBYear}
+          />
+          <ScrollWheelColumn
+            value={bMonth}
+            min={1}
+            max={12}
+            format={(v) => `${v}월`}
+            onChange={setBMonth}
+          />
+          <ScrollWheelColumn
+            value={day}
+            min={1}
+            max={daysInMonth}
+            format={(v) => `${v}일`}
+            onChange={setBDay}
+          />
+        </div>
+      </div>
 
       <div className="mt-2 flex">
         <span className="text-[length:calc(16px*var(--ts))] font-bold text-forest bg-lightgreen rounded-chip px-3 py-1">
