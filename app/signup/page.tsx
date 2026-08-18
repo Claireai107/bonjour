@@ -83,7 +83,8 @@ export default function SignupScreen() {
   const [addressDetail, setAddressDetail] = useState("");
   const [postcodeOpen, setPostcodeOpen] = useState(false);
   // 생년월일 휠 피커를 펼쳤는지 (기본은 숫자 직접 입력)
-  const [wheelOpen, setWheelOpen] = useState(false);
+  // 스크롤 휠은 처음부터 펼쳐 보여준다(팀 피드백) — 접기는 토글로 가능
+  const [wheelOpen, setWheelOpen] = useState(true);
   const [geoLoading, setGeoLoading] = useState(false);
   const [addrNote, setAddrNote] = useState("");
 
@@ -539,7 +540,7 @@ export default function SignupScreen() {
         >
           <path d="M12 5v14M8 9l4-4 4 4M8 15l4 4 4-4" />
         </svg>
-        {wheelOpen ? "숫자로 입력할래요" : "숫자 입력이 어려우세요?"}
+        {wheelOpen ? "돌림판 접기" : "밀어서 고르기 펼치기"}
       </button>
 
       {wheelOpen && (
