@@ -3,9 +3,9 @@ import type { RiskGrade } from "@/lib/types";
 // Bone Score 원형 게이지 — 디자인(6 AI리포트 · 핵심 요약).
 // 110px SVG(viewBox 120), 트랙 연그린, 진행 호 = 등급색, 점수 텍스트 내장.
 const gradeColor: Record<RiskGrade, string> = {
-  정상: "#3E7A4E",
+  안심: "#3E7A4E",
   주의: "#D9A441",
-  높음: "#C7503A",
+  위험: "#C7503A",
 };
 
 export default function BoneScoreGauge({

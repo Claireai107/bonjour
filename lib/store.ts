@@ -212,7 +212,9 @@ export const useBonJour = create<BonJourState>()(
       };
     },
     {
-      name: "bonjour-store",
+      // v2: 재분석 모델(2026-08-17) 적용 — 구 모델로 계산된 리포트와 섞이면
+      // 같은 사람 점수가 갑자기 뛰어 보이므로 키를 바꿔 초기화한다 (인계 문서 D-2)
+      name: "bonjour-store-v2",
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? sessionStorage : (undefined as any)
       ),

@@ -17,20 +17,15 @@ import type { RiskGrade, SurveyAnswers, ReportEntry } from "@/lib/types";
 
 const { buildReportHistory, clampReportSelection } = reportHistory;
 
-// 등급 → 배지 표기/색 (디자인: 좋음 = 연그린 배지 + 포레스트 텍스트)
+// 등급 → 배지 표기/색. 라벨은 재분석 반영판 그대로 안심/주의/위험.
+// "위험"만 크게 띄우면 놀라시므로, 화면에서는 한마디(comment)가 주인공이고 등급은 보조.
 const GRADE_BADGE: Record<
   RiskGrade,
   { label: string; bg: string; color: string }
 > = {
-  정상: { label: "좋음", bg: "#E8F0E3", color: "#3E7A4E" },
+  안심: { label: "안심", bg: "#E8F0E3", color: "#3E7A4E" },
   주의: { label: "주의", bg: "#F6ECD5", color: "#D9A441" },
-  높음: { label: "관리 필요", bg: "#F6E3DF", color: "#C7503A" },
-};
-
-const GRADE_PHRASE: Record<RiskGrade, string> = {
-  정상: "건강한 편이에요",
-  주의: "조금 관리가 필요해요",
-  높음: "적극적인 관리가 필요해요",
+  위험: { label: "위험", bg: "#F6E3DF", color: "#C7503A" },
 };
 
 function CheckIcon({ size, color }: { size: number; color: string }) {
@@ -118,7 +113,6 @@ function ReportBody({
   );
 
   const badge = GRADE_BADGE[result.grade];
-  const band = answers.age ? `${Math.floor(answers.age / 10) * 10}대 여성 중 ` : "";
   const markerLeft = result.percentile; // percentile은 클수록 건강 → 오른쪽(건강)에 가깝게
   const delta = result.bestAchievableScore - result.boneScore;
 
@@ -177,17 +171,26 @@ function ReportBody({
             <BoneScoreGauge score={result.boneScore} grade={result.grade} />
             <div className={stacked ? "w-full" : "flex-1"}>
               <div
-                className="inline-block text-[length:calc(19px*var(--ts))] font-bold rounded-chip px-4 py-[5px]"
+                className="inline-block text-[length:calc(16px*var(--ts))] font-bold rounded-chip px-3 py-[4px]"
                 style={{ backgroundColor: badge.bg, color: badge.color }}
               >
                 {badge.label}
               </div>
-              <div className="mt-2 text-[length:calc(17px*var(--ts))] text-charcoal leading-[1.45]">
-                같은 연령대에서
-                <br />
-                {GRADE_PHRASE[result.grade]}
+              {/* 한마디가 주인공, 등급 배지는 보조 (인계 문서 E) */}
+              <div className="mt-2 text-[length:calc(19px*var(--ts))] font-bold text-charcoal leading-[1.4] break-keep">
+                {result.comment}
               </div>
             </div>
+          </div>
+
+          {/* 등급 안내 — 안심 등급에도 정기검진 안내를 남긴다 (인계 문서 C-3) */}
+          <div className="mt-[10px] bg-white rounded-card px-5 py-4">
+            <p className="text-[length:calc(16px*var(--ts))] text-charcoal leading-[1.55] break-keep">
+              {result.guidance}
+            </p>
+            <p className="mt-2 text-[length:calc(15px*var(--ts))] text-graytext leading-[1.5] break-keep">
+              {result.easyExplain}
+            </p>
           </div>
 
           {/* 또래 비교 */}
@@ -195,13 +198,9 @@ function ReportBody({
             <div className="text-[14px] font-bold text-graytext">
               같은 또래와 비교하면
             </div>
-            <div className="mt-[2px] text-[20px] font-bold text-forest">
-              {/* 건강한 절반이면 '상위 X%', 나쁜 절반이면 '하위 X%'로 표기 */}
-              {band}
-              {result.percentile >= 50
-                ? `상위 ${100 - result.percentile}%`
-                : `하위 ${result.percentile}%`}
-              예요
+            {/* '상위 %'는 좋은 건지 나쁜 건지 헷갈려서 사람 수로 말한다 (인계 문서 E) */}
+            <div className="mt-[2px] text-[length:calc(18px*var(--ts))] font-bold text-forest leading-[1.45] break-keep">
+              {result.peerText}
             </div>
             <div className="relative pt-[30px] mt-1">
               <div

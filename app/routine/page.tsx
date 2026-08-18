@@ -9,6 +9,7 @@ import EmptyAnalysis from "@/components/EmptyAnalysis";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
 import { buildPrescription } from "@/lib/prescription";
+import { recommendActions } from "@/lib/predict";
 import { youtubeThumb, youtubeWatch } from "@/lib/videos";
 import type { VideoResource, FavoriteItem } from "@/lib/types";
 
@@ -43,6 +44,11 @@ export default function RoutineScreen() {
     () => (result ? buildPrescription(result, answers) : []),
     [result, answers]
   );
+  // 모델기반 맞춤 안내 — 계수가 안정적인 항목(체중·등급이 바뀌는 근력운동)만 (인계 문서 A-9)
+  const rec = useMemo(
+    () => (result ? recommendActions(answers) : null),
+    [result, answers]
+  );
   if (!hydrated) return null;
 
   return (
@@ -51,6 +57,32 @@ export default function RoutineScreen() {
 
       {result ? (
         <div className="flex-1 overflow-y-auto px-gutter pb-6">
+          {/* 회원님께 맞춘 안내 — 모델이 근거를 갖고 말할 수 있는 것만 */}
+          {rec && rec.modelBased.length > 0 && (
+            <section className="mt-2">
+              <h2 className="text-[length:calc(18px*var(--ts))] font-bold text-charcoal">
+                {rec.modelTitle}
+              </h2>
+              {rec.modelBased.map((a) => (
+                <div
+                  key={a.item}
+                  className="mt-[10px] bg-white rounded-card py-[16px] px-[20px] shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+                >
+                  <p className="text-[length:calc(17px*var(--ts))] font-bold text-forest break-keep">
+                    {a.oneLine}
+                  </p>
+                  <p className="mt-[6px] text-[length:calc(15px*var(--ts))] text-charcoal leading-[1.55] break-keep">
+                    {a.message}
+                  </p>
+                  {a.caution && (
+                    <p className="mt-[6px] text-[length:calc(14px*var(--ts))] text-graytext break-keep">
+                      ※ {a.caution}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
           {cards.map((card, idx) => {
             const header = RULE_HEADER[card.ruleId] ?? {
               sub: "",
@@ -121,12 +153,18 @@ export default function RoutineScreen() {
 
           <div className="mt-[26px] flex items-center gap-3">
             <Boni pose="lift" size={64} className="shrink-0" />
-            <p className="text-[14px] text-graytext leading-[1.6]">
-              이 운동 추천은 참고용이에요. 통증이 있거나 치료 중이시라면
-              <br />
-              운동 시작 전에 의사와 상담해 주세요.
+            <p className="text-[14px] text-graytext leading-[1.6] break-keep">
+              이 운동 추천은 참고용이에요. 통증이 있거나 치료 중이시라면 운동
+              시작 전에 의사와 상담해 주세요.
             </p>
           </div>
+
+          {/* 행동 권고의 출처 고지 (인계 문서 A-9) */}
+          {rec && (
+            <p className="mt-[10px] text-[length:calc(13px*var(--ts))] text-graytext leading-[1.6] break-keep">
+              {rec.disclosure}
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex-1 px-gutter flex flex-col">

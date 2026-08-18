@@ -6,7 +6,7 @@ import Boni from "@/components/Boni";
 import TabBar from "@/components/TabBar";
 import { useBonJour } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { simulate } from "@/lib/predict";
+import { simulate, weightSensitivity } from "@/lib/predict";
 import CoachMark from "@/components/CoachMark";
 import { useCountUp } from "@/lib/useCountUp";
 
@@ -14,11 +14,11 @@ import { useCountUp } from "@/lib/useCountUp";
 const STRENGTH_CAT_TO_DAYS = [0, 1.5, 3.5, 6];
 const strengthLabel = (d: number) => (d <= 0 ? "안 함" : `주 ${Math.round(d)}회`);
 
-// 등급 표기색 — 디자인: 정상=포레스트, 주의=#C25B2E, 높음=danger
+// 등급 표기색 — 재분석 반영판 라벨: 안심=포레스트, 주의=#C25B2E, 위험=danger
 const GRADE_COLOR: Record<string, string> = {
-  정상: "#3E7A4E",
+  안심: "#3E7A4E",
   주의: "#C25B2E",
-  높음: "#C7503A",
+  위험: "#C7503A",
 };
 
 export default function SimulatorScreen() {
@@ -55,14 +55,21 @@ export default function SimulatorScreen() {
     [answers, checkup, baseWeight, strength]
   );
 
-  // 슬라이더를 끝까지 올렸을 때 몇 점까지 가는지 — 상한을 알려주기 위해
+  // 지침 권고치(주 3회) 기준 도달 가능 점수 — 주 6일 같은 목표는
+  // 학습 데이터 밖 외삽이라 상한 안내에 쓰지 않는다 (인계 문서 A-8)
   const maxSim = useMemo(
     () =>
       simulate(answers, checkup, {
         weight: baseWeight,
-        strengthDays: 7,
+        strengthDays: Math.max(3, baseStrength),
       }),
-    [answers, checkup, baseWeight]
+    [answers, checkup, baseWeight, baseStrength]
+  );
+
+  // 체중은 조절 대상이 아니라 '지키기' 대상 (인계 문서 A-10)
+  const weightNote = useMemo(
+    () => weightSensitivity(answers, checkup),
+    [answers, checkup]
   );
 
   // 점수가 바뀌면 숫자가 굴러가고, 변화량 배지가 잠깐 떴다 사라진다
@@ -88,7 +95,7 @@ export default function SimulatorScreen() {
   const ceilingNote =
     headroom <= 0
       ? "이미 좋은 상태라 이 항목으로는 더 올릴 여지가 적어요."
-      : `근력운동을 늘리면 최대 ${maxSim.boneScore}점까지 올릴 수 있어요 (지금보다 +${headroom}점).`;
+      : `근력운동을 주 3회로 늘리면 ${maxSim.boneScore}점까지 올라갈 수 있어요 (지금보다 +${headroom}점).`;
 
   // 게이지 마커 위치: 위험(왼쪽) → 안전(오른쪽), 뼈 점수 %와 동일
   const markerPct = Math.max(4, Math.min(96, sim.boneScore));
@@ -226,6 +233,22 @@ export default function SimulatorScreen() {
           onChange={(v) => setStrength(Math.round(v))}
         />
       </div>
+
+      {/* 체중 — 조절이 아니라 '지키기' 안내 (인계 문서 A-10: 고령 여성의
+          의도치 않은 체중 감소는 골다공증의 알려진 위험 신호) */}
+      {weightNote.available && (
+        <div className="mt-[16px] bg-white rounded-card py-[18px] px-[24px] shadow-[0_1px_6px_rgba(0,0,0,0.06)]">
+          <p className="text-[length:calc(18px*var(--ts))] font-bold text-charcoal">
+            지금 몸무게를 지켜주세요
+          </p>
+          <p className="mt-[6px] text-[length:calc(16px*var(--ts))] text-graytext leading-[1.55] break-keep">
+            {weightNote.summary}
+          </p>
+          <p className="mt-[6px] text-[length:calc(15px*var(--ts))] text-forest font-medium break-keep">
+            {weightNote.caution}
+          </p>
+        </div>
+      )}
 
       {/* 결과 배지 + 참고 문구 — 스크롤 영역 맨 아래 */}
       {improved > 0 && (

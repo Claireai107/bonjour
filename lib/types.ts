@@ -44,15 +44,32 @@ export interface FactorContribution {
   controllable: boolean; // 시뮬레이터 슬라이더 대상 여부
 }
 
-export type RiskGrade = "정상" | "주의" | "높음";
+/** 등급 — 재분석 반영판: 안심/주의/위험 (경계는 서비스_처리규칙 JSON에서만) */
+export type RiskGrade = "안심" | "주의" | "위험";
 
 export interface PredictionResult {
   modelUsed: ModelUsed;
-  riskProbability: number; // 0~1 골다공증 위험 확률
-  boneScore: number; // 0~100 (위험 낮을수록 높음)
+  /** 실제 사용 트랙 — 설문11(검진표 불필요) / 전체16(검진값 포함) */
+  track: "설문11" | "전체16";
+  riskProbability: number; // 0~1 — isotonic 보정된 확률 (실제 유병 수준과 일치)
+  boneScore: number; // 1~99 — 또래 위험도 백분위 기반 (높을수록 좋음)
   grade: RiskGrade;
-  percentile: number; // 동년배 대비 상위 몇 % (낮을수록 건강)
-  bestAchievableScore: number; // DiCE: 통제가능 변수 최적화 시 도달 가능 점수
+  /**
+   * 또래 중 "나보다 위험이 높은 사람"의 비율. 높을수록 건강하다.
+   * 새 산식에서는 boneScore와 같은 값이다.
+   */
+  percentile: number;
+  /** 또래 비교 문구 — "60대 여성 100명이 있다면, 그중 91명이 …" (화면에 그대로) */
+  peerText: string;
+  /** 등급 한마디 — 큰 제목용. "위험"만 크게 띄우지 말고 이게 주인공 */
+  comment: string;
+  /** 등급 안내 본문 */
+  guidance: string;
+  /** "회원님과 비슷한 분들 중에 뼈가 약한 분이 10명 중 N명 정도예요" */
+  easyExplain: string;
+  /** 위험 등급 → 골밀도 검사 권유 */
+  needsExam: boolean;
+  bestAchievableScore: number; // 근력운동 주 3회(지침 권고치) 기준 도달 가능 점수
   riskFactors: FactorContribution[]; // 위험요인 (contribution>0), 큰 순
   protectiveFactors: FactorContribution[]; // 보호요인 (contribution<0)
 }

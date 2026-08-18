@@ -161,26 +161,24 @@ export function buildPrescription(
 ): PrescriptionCard[] {
   const matched = new Set<string>();
 
-  // 위험요인 상위부터 규칙에 매핑
+  // 위험요인 상위부터 규칙에 매핑 (f.key는 새 모델 변수명 — predict.ts FACTOR_LABELS 참고)
   for (const f of result.riskFactors) {
-    // f.key는 모델 변수명 (predict.ts 참고)
     switch (f.key) {
-      case "BE5_1": // 근력운동 부족
+      case "exercise": // 근력운동 부족
         matched.add("R1");
         break;
-      case "HE_wt": // 저체중
-      case "HE_BMI":
+      case "wt": // 저체중
         matched.add("R2");
         break;
-      case "age": // 고령 + 위험 높으면 균형운동
-        if (result.grade === "높음") matched.add("R3");
+      case "age": // 고령 + 위험 등급이면 균형운동
+        if (result.grade === "위험") matched.add("R3");
         else matched.add("R7");
         break;
-      case "HE_wc": // 허리둘레
+      case "wc": // 허리둘레
         matched.add("R4");
         break;
-      case "LW_mp_a": // 폐경 시기
-      case "LW_ms_a": // 초경 시기
+      case "meno_age": // 폐경 시기
+      case "mens_age": // 초경 시기
         matched.add("R6");
         break;
       default:
@@ -188,8 +186,8 @@ export function buildPrescription(
     }
   }
 
-  // 정상군이면 유지관리 카드
-  if (result.grade === "정상" && matched.size === 0) {
+  // 안심군이면 유지관리 카드
+  if (result.grade === "안심" && matched.size === 0) {
     matched.add("R9");
   }
   // 아무 것도 안 잡히면 활동량 카드 기본 제공

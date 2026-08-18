@@ -614,8 +614,9 @@ export default function CheckupScreen() {
             <br />
             직접 입력해 주세요
           </h1>
-          <p className="mt-2.5 text-[18px] text-graytext">
-            숫자 몇 개만 입력하면 돼요
+          <p className="mt-2.5 text-[18px] text-graytext break-keep">
+            숫자 몇 개만 입력하면 돼요. 결과지에 없는 항목은 비워 두셔도
+            충분히 계산돼요.
           </p>
 
           <div className="mt-4 space-y-5">

@@ -44,10 +44,12 @@ test("음주 시작 나이를 입력하면 결과가 달라진다", () => {
   assert.notEqual(이른.boneScore, 늦은.boneScore);
 });
 
-test("술을 안 마시면(-1) 중앙값으로 대체된다", () => {
+test("술을 안 마시면(-1) 음주경험 0으로 들어가고 중앙값으로 둔갑하지 않는다", () => {
+  // 재분석 반영판: 비음주 = drink_ever 0 + drink_age null.
+  // 구 모델은 비음주자를 음주시작 중앙값(35세)으로 채워 음주자로 둔갑시켰다.
   const 안마심 = predict({ ...기본, drinkStartAge: -1 }, {});
-  const 미입력 = predict({ ...기본 }, {});
-  assert.equal(안마심.boneScore, 미입력.boneScore);
+  const 음주자 = predict({ ...기본, drinkStartAge: 20 }, {});
+  assert.notEqual(안마심.riskProbability, 음주자.riskProbability);
 });
 
 test("요인 이름이 '출산 횟수'가 아니라 '임신 횟수'로 표기된다", () => {

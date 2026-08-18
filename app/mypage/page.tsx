@@ -22,13 +22,12 @@ export default function MyPageScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const gradeColor =
-    result?.grade === "정상"
+    result?.grade === "안심"
       ? "#3E7A4E"
       : result?.grade === "주의"
       ? "#D9A441"
       : "#C7503A";
-  const gradeLabel =
-    result?.grade === "정상" ? "좋음" : result?.grade ?? "";
+  const gradeLabel = result?.grade ?? "";
 
   if (!hydrated) return null;
 
