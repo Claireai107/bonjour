@@ -4,51 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useBonJour } from "@/lib/store";
 import PostcodeSearch from "@/components/PostcodeSearch";
+import ScrollWheelColumn from "@/components/ScrollWheelColumn";
 import Dialog from "@/components/Dialog";
 import { ConsentSheet, type ConsentDoc } from "@/components/PrivacyPolicy";
 
 // 화면 5a · 회원가입 — 휴대폰 인증 → 동의 → 서버 가입(DB 저장). 스플래시 → 회원가입 → 홈
 const fieldCls =
   "w-full h-[60px] rounded-field bg-white border-2 border-borderline px-5 text-[length:calc(18px*var(--ts))] text-charcoal placeholder:text-graytext focus:border-forest outline-none";
-
-function WheelColumn({
-  value,
-  min,
-  max,
-  suffix,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  suffix: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="flex flex-col items-center">
-      <button
-        type="button"
-        onClick={() => value > min && onChange(value - 1)}
-        aria-label={`${value - 1}${suffix} 선택`}
-        className="h-[26px] flex items-center text-[length:calc(16px*var(--ts))] text-[#C9C5B8]"
-      >
-        {value > min ? `${value - 1}${suffix}` : " "}
-      </button>
-      <div className="h-[42px] flex items-center text-[length:calc(22px*var(--ts))] font-bold text-charcoal">
-        {value}
-        {suffix}
-      </div>
-      <button
-        type="button"
-        onClick={() => value < max && onChange(value + 1)}
-        aria-label={`${value + 1}${suffix} 선택`}
-        className="h-[26px] flex items-center text-[length:calc(16px*var(--ts))] text-[#C9C5B8]"
-      >
-        {value < max ? `${value + 1}${suffix}` : " "}
-      </button>
-    </div>
-  );
-}
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -71,6 +33,7 @@ export default function SignupScreen() {
   const [openDoc, setOpenDoc] = useState<ConsentDoc | null>(null);
   const [formErr, setFormErr] = useState("");
   const [needVerify, setNeedVerify] = useState(false); // 인증 없이 가입 시도 시 안내
+  const [askLocation, setAskLocation] = useState(false); // 현재위치 클릭 시 위치 동의 확인
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -154,14 +117,19 @@ export default function SignupScreen() {
   };
 
   // 현재 위치로 주소 채우기 (GPS → 서버 → 카카오 좌표→주소)
+  //
+  // 위치정보법(제15조)상 개인위치정보 수집·이용에는 동의가 필요하다.
+  // 다만 미리 아래 체크박스를 찾아 동의하게 하는 대신, 버튼을 누른 시점에
+  // 동의를 물어(just-in-time) 동의하면 바로 이어서 위치를 읽는다.
   const useCurrentLocation = () => {
-    // 위치정보법 제19조 — 동의 없이는 위치를 수집하지 않는다
     if (!agreeLocation) {
-      setAddrNote(
-        "위치정보 이용에 동의하시면 현재 위치로 주소를 채울 수 있어요. 아래 동의 항목을 확인해 주세요."
-      );
+      setAskLocation(true); // 동의 다이얼로그 → 동의 시 체크 + 즉시 실행
       return;
     }
+    doLocate();
+  };
+
+  const doLocate = () => {
     if (!("geolocation" in navigator)) {
       setAddrNote("이 기기에서는 위치를 사용할 수 없어요.");
       return;
@@ -551,25 +519,25 @@ export default function SignupScreen() {
           <div className="mt-2 relative rounded-field bg-white border-2 border-borderline p-[10px]">
             <div className="absolute left-[10px] right-[10px] top-1/2 -translate-y-1/2 h-[42px] bg-lightgreen rounded-chip" />
             <div className="relative grid grid-cols-[1.3fr_1fr_1fr]">
-              <WheelColumn
+              <ScrollWheelColumn
                 value={bYear}
                 min={1920}
                 max={today.getFullYear()}
-                suffix="년"
+                format={(v) => `${v}년`}
                 onChange={setBYear}
               />
-              <WheelColumn
+              <ScrollWheelColumn
                 value={bMonth}
                 min={1}
                 max={12}
-                suffix="월"
+                format={(v) => `${v}월`}
                 onChange={setBMonth}
               />
-              <WheelColumn
+              <ScrollWheelColumn
                 value={day}
                 min={1}
                 max={daysInMonth}
-                suffix="일"
+                format={(v) => `${v}일`}
                 onChange={setBDay}
               />
             </div>
@@ -764,6 +732,22 @@ export default function SignupScreen() {
         open={needVerify}
         message={"핸드폰 번호를 인증해주세요."}
         onConfirm={() => setNeedVerify(false)}
+      />
+
+      {/* 현재 위치 사용 시점 동의 (위치정보법 — 동의 없이 수집하지 않는다) */}
+      <Dialog
+        open={askLocation}
+        message={
+          "현재 위치로 주소를 찾으려면\n위치정보 이용 동의가 필요해요.\n동의하고 계속할까요?"
+        }
+        cancelLabel="취소"
+        confirmLabel="동의하고 찾기"
+        onCancel={() => setAskLocation(false)}
+        onConfirm={() => {
+          setAgreeLocation(true); // 아래 동의 항목에도 체크로 반영된다
+          setAskLocation(false);
+          doLocate();
+        }}
       />
     </div>
   );
