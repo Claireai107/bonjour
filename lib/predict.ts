@@ -1,5 +1,5 @@
 // ============================================================
-// 예측 엔진 — 데이터팀 재분석 반영판 v2 (2026-08-18 인계)
+// 예측 엔진 — 데이터팀 재분석 최종판 (2026-08-20 인계)
 //
 // 데이터팀 bonjour_backend.py 를 그대로 TS로 옮긴 것.
 // 회귀 테스트(tests/newModel.test.mjs)가 파이썬 출력과 수치 일치를 검증한다.
@@ -12,6 +12,12 @@
 //   · 적용 대상 관문 — 만 20~89세 여성만. 그 외에는 안내만 (분기 화면 없음)
 //   · 또래 비교 6개 밴드(20대~70대이상) + 표본 30명 미만이면 순위를 말하지 않음
 //   · normalize — 문자열·범위 밖 값을 계산 전에 정리
+//
+// 최종판(08-20)에서 바뀐 것:
+//   · 확률 보정 isotonic → Platt(sigmoid) — isotonic이 저위험자를 확률 0에 뭉쳐
+//     전원 99점·슬라이더 무반응을 만들던 버그의 근본 수정 (인계 문서 §12)
+//   · 백분위 동점은 중간 순위로 — bisect_left 단독의 맨앞 순위 부여 방지
+//   · 파라미터는 데이터팀 JS_모델파라미터.json 그대로 (파이썬과 오차 0, 400건 검증)
 // ============================================================
 
 import MODEL from "./model/newModelParams";
@@ -29,28 +35,37 @@ type UserRecord = Record<string, number | string | null>;
 type NumRecord = Record<string, number | null>;
 
 interface Fold {
+  imputerMedian: number[];
   scalerMean: number[];
   scalerScale: number[];
   coef: number[];
   intercept: number;
-  isoX: number[];
-  isoY: number[];
+  plattA: number;
+  plattB: number;
 }
 
 interface Track {
-  features: string[];
-  folds: Fold[];
+  cols: string[];
   medians: Record<string, number>;
-  peer: Record<string, { 분포: number[]; n: number }>;
+  folds: Fold[];
 }
 
-const M = MODEL as unknown as {
-  gradeCuts: { 주의: number; 위험: number };
-  scoreRef: number[];
-  checkupOnly: string[];
-  yearStdTargets: string[];
-  yearStdRef: Record<string, { mean: number; std: number }>;
-  tracks: Record<string, Track>;
+const RAW = MODEL as unknown as {
+  등급_경계_공통: { 주의: number; 위험: number };
+  점수기준_공통분포: number[];
+  연도내표준화_기준_2024: Record<string, { mean: number; std: number }>;
+  트랙: Record<string, Track>;
+  또래분포_2024기준: Record<string, Record<string, { 분포: number[]; n: number }>>;
+};
+
+const M = {
+  gradeCuts: RAW.등급_경계_공통,
+  scoreRef: RAW.점수기준_공통분포,
+  checkupOnly: ["alp", "wc", "pth", "fev1fvc", "sbp"],
+  yearStdTargets: Object.keys(RAW.연도내표준화_기준_2024),
+  yearStdRef: RAW.연도내표준화_기준_2024,
+  tracks: RAW.트랙,
+  peerDist: RAW.또래분포_2024기준,
 };
 
 // ── 입력 정리 (normalize) — 문자열·불가능한 값을 계산 전에 걸러낸다 ──────
@@ -181,38 +196,23 @@ export function chooseTrack(u: NumRecord): TrackName {
   return M.checkupOnly.some((k) => u[k] != null) ? "전체16" : "설문11";
 }
 
-// ── 확률: 5-fold 보정 분류기 (파이썬 predict_proba와 동일) ───────────────
-function isotonic(fold: Fold, z: number): number {
-  const X = fold.isoX;
-  const Y = fold.isoY;
-  if (z <= X[0]) return Y[0];
-  if (z >= X[X.length - 1]) return Y[Y.length - 1];
-  let lo = 0;
-  let hi = X.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (X[mid] <= z) lo = mid;
-    else hi = mid;
-  }
-  const t = (z - X[lo]) / (X[hi] - X[lo] || 1);
-  return Y[lo] + t * (Y[hi] - Y[lo]);
-}
-
+// ── 확률: 5-fold Platt 보정 분류기 (계산순서는 JS_모델파라미터.json 그대로) ──
+//   z = (x - scalerMean) / scalerScale
+//   f = intercept + z·coef
+//   p = 1 / (1 + exp(A·f + B)) — Platt(sigmoid). isotonic처럼 확률 0을 만들지 않는다
+//   5폴드 평균
 function probability(u0: NumRecord, track: TrackName): number {
   const T = M.tracks[track];
   const u = derive(u0);
-  // _prep: 빈칸은 처리규칙 학습 중앙값으로 채운다
-  const row = T.features.map((f) => (u[f] == null ? T.medians[f] : (u[f] as number)));
+  const row = T.cols.map((f) => (u[f] == null ? T.medians[f] : (u[f] as number)));
   let sum = 0;
   for (const fold of T.folds) {
-    let z = fold.intercept;
+    let f = fold.intercept;
     for (let i = 0; i < row.length; i++) {
       const x = (row[i] - fold.scalerMean[i]) / (fold.scalerScale[i] || 1);
-      z += fold.coef[i] * x;
+      f += fold.coef[i] * x;
     }
-    // sklearn CalibratedClassifierCV는 decision_function(선형 점수 z) 위에서
-    // isotonic을 학습한다 — 시그모이드를 거치면 안 된다
-    sum += isotonic(fold, z);
+    sum += 1 / (1 + Math.exp(fold.plattA * f + fold.plattB));
   }
   return sum / T.folds.length;
 }
@@ -260,9 +260,9 @@ function 몇명(p: number): string {
 // ── 점수 — 트랙 공통 분포 백분위 (높을수록 좋음) ─────────────────────────
 // 또래별 순위로 매기면 밴드 경계에서 점수가 튄다. 전체 분포 기준이라
 // 확률이 오르면 점수는 반드시 내려간다 — 트랙이 바뀌어도.
-function scoreOf(p: number): number {
-  const dist = M.scoreRef;
-  if (!dist.length) return 50;
+// 기준 분포에서 p의 백분위. 동점은 중간 순위 — bisect_left만 쓰면
+// 동점 그룹 전원이 그룹 맨 앞 순위를 받는다 (§12에서 98명 전원 99점의 한 원인)
+function pctileOf(dist: number[], p: number): number {
   let lo = 0;
   let hi = dist.length;
   while (lo < hi) {
@@ -270,8 +270,20 @@ function scoreOf(p: number): number {
     if (dist[mid] < p) lo = mid + 1;
     else hi = mid;
   }
-  const pctile = (lo / dist.length) * 100; // 0=가장 안전 … 100=가장 위험
-  return Math.round(Math.max(1, Math.min(99, 100 - pctile)));
+  let hi2 = dist.length;
+  let lo2 = lo;
+  while (lo2 < hi2) {
+    const mid = (lo2 + hi2) >> 1;
+    if (dist[mid] <= p) lo2 = mid + 1;
+    else hi2 = mid;
+  }
+  return ((lo + lo2) / 2 / dist.length) * 100; // 0=가장 안전 … 100=가장 위험
+}
+
+function scoreOf(p: number): number {
+  const dist = M.scoreRef;
+  if (!dist.length) return 50;
+  return Math.round(Math.max(1, Math.min(99, 100 - pctileOf(dist, p))));
 }
 
 // ── 또래 비교 — 2024년 같은 연령대 (표본 30명 미만이면 순위를 말하지 않는다) ──
@@ -290,7 +302,7 @@ function peer(u: NumRecord, track: TrackName): PeerResult {
   const band =
     age < 30 ? "20대" : age < 40 ? "30대" : age < 50 ? "40대"
     : age < 60 ? "50대" : age < 70 ? "60대" : "70대이상";
-  const spec = M.tracks[track].peer[band];
+  const spec = M.peerDist[track]?.[band];
   const dist = spec?.분포 ?? [];
   const n = spec?.n ?? 0;
   const MIN_N = 30;
@@ -300,14 +312,7 @@ function peer(u: NumRecord, track: TrackName): PeerResult {
       text: `${band} 또래와 비교할 자료가 아직 충분하지 않아요. 점수와 아래 안내를 봐주세요.`,
     };
   }
-  let lo = 0;
-  let hi = dist.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (dist[mid] < p) lo = mid + 1;
-    else hi = mid;
-  }
-  const pctile = Math.round((lo / dist.length) * 100);
+  const pctile = Math.round(pctileOf(dist, p));
   return {
     band, n, reliable: true, riskPercentile: pctile,
     text: `${band} 여성 100명이 있다면, 그중 ${pctile}명이 회원님보다 뼈가 튼튼해요.`,
@@ -341,7 +346,7 @@ function contributions(u0: NumRecord, track: TrackName): FactorContribution[] {
   const u = derive(u0);
   const myScore = scoreOf(probability(u, track));
   const out: FactorContribution[] = [];
-  for (const f of T.features) {
+  for (const f of T.cols) {
     if (u[f] == null) continue; // 실제로 입력한 값만 설명한다
     if (f === "폐경후경과") continue; // meno_age에서 파생 — 별도 요인으로 세지 않는다
     // "이 값이 또래 평균(학습 중앙값)이었다면 점수가 몇 점이었을까"와의 차이.
