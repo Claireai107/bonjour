@@ -74,9 +74,13 @@ export default function MyPageScreen() {
               <div className="text-[20px] font-bold text-charcoal">
                 {displayName}님
               </div>
+              {/* 주소는 별도 줄 — 글자를 키우면 주소 끝자리만 다음 줄로 떨어졌다 */}
               <div className="mt-0.5 text-[15px] text-graytext">
                 {profile.gender === "M" ? "남성" : "여성"} ·{" "}
-                {answers.age ?? "-"}세 · {profile.region || "순천시"}
+                {answers.age ?? "-"}세
+              </div>
+              <div className="text-[14px] text-graytext truncate">
+                {profile.region || "순천시"}
               </div>
             </div>
           </div>

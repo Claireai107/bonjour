@@ -449,7 +449,9 @@ export default function SignupScreen() {
       */}
       <label className="mt-4 text-sub font-bold text-charcoal">생년월일</label>
       <p className="mt-1 text-[length:calc(16px*var(--ts))] text-graytext">
-        숫자로 바로 입력하세요 (예: 1962 / 05 / 14)
+        숫자로 바로 입력하세요{" "}
+        {/* 예시는 통째로 줄바꿈 — 글자를 키우면 '14)'만 떨어졌다 */}
+        <span className="whitespace-nowrap">(예: 1962 / 05 / 14)</span>
       </p>
       <div className="mt-2 flex items-center gap-2">
         <BirthNumberInput
